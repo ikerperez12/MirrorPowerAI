@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>MirrorPowerAI</string>
+    <key>CFBundleDisplayName</key>
+    <string>MirrorPowerAI</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.mirrorpowerai.app</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>MirrorPowerAI</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.2</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>MirrorPowerAI transcribe lo que se dice en tus demos para poder ayudarte a responder preguntas.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>MirrorPowerAI necesita escuchar el audio de salida del sistema (lo que se oye por los altavoces en tu videollamada) para transcribir las preguntas que te hacen.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>MirrorPowerAI puede usar el micrófono si activas la captura por voz propia.</string>
+</dict>
+</plist>

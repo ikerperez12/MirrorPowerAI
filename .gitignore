@@ -1,0 +1,4 @@
+.build/
+MirrorPowerAI.app/
+.DS_Store
+*.xcodeproj
