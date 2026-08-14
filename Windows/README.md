@@ -41,6 +41,7 @@ Comandos parciales:
 .\Windows\preflight.ps1
 .\Windows\test.ps1
 .\Windows\publish.ps1
+.\Windows\benchmark.ps1 --help
 ```
 
 ## Primera ejecución
@@ -80,6 +81,10 @@ Consulta [PRIVACY.md](docs/PRIVACY.md) para el flujo de datos completo.
 - Windows 10, ARM64, MSIX, firma de código, autoactualización y publicación de releases quedan fuera de esta primera versión.
 - La etiqueta estable requiere completar la matriz manual de [QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
 
+## Benchmark de Whisper local
+
+La utilidad `MirrorPowerAI.Benchmark` mide WER y RTF con WAV PCM mono de 16 kHz y 16 bits, y utiliza el modelo Whisper base verificado. Úsala sólo con audio sintético, público o autorizado: la CLI imprime la transcripción completa. Una ejecución local no reemplaza el corpus español versionado ni la matriz de QA manual. Consulta [BENCHMARKING.md](docs/BENCHMARKING.md) para el comando, límites y criterios de interpretación.
+
 ## Documentación
 
 - [Arquitectura](docs/ARCHITECTURE.md)
@@ -87,5 +92,6 @@ Consulta [PRIVACY.md](docs/PRIVACY.md) para el flujo de datos completo.
 - [Seguridad](docs/SECURITY.md)
 - [Solución de problemas](docs/TROUBLESHOOTING.md)
 - [Matriz de QA](docs/QA_CHECKLIST.md)
+- [Benchmark de Whisper local](docs/BENCHMARKING.md)
 - [Dependencias](docs/DEPENDENCIES.md)
 - [Integración upstream futura](docs/UPSTREAM_INTEGRATION.md)

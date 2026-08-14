@@ -54,6 +54,10 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 ## Rendimiento de referencia
 
 - [ ] Corpus español versionado y sin datos privados.
+- [ ] Benchmark ejecutado sólo con WAV PCM mono de 16 kHz y 16 bits, sintético, público o autorizado; no se pasa audio privado porque la CLI muestra la transcripción.
+- [ ] Modelo Whisper base verificado antes de medir; su preparación/verificación queda registrada aparte del RTF.
+- [ ] Evidencia conservada: versión del código, corpus, comando, idioma, hilos, modelo, duración, WER y RTF.
 - [ ] Whisper base: WER normalizado menor o igual al 20 %.
 - [ ] Whisper base: factor de tiempo real menor o igual a 0,25 en Ryzen 7 7735HS.
 - [ ] Si base falla precisión, evaluar `small` y exigir factor menor o igual a 0,5.
+- [ ] La ejecución local o sintética no se acepta como sustituto del corpus español versionado ni de las demás pruebas manuales de esta matriz.

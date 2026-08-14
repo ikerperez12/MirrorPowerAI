@@ -46,3 +46,13 @@ Invoke-MirrorPowerAIDotNet -Arguments @(
     '--logger', 'trx;LogFileName=windows-tests.trx',
     '--results-directory', $resultsDirectory
 )
+
+$benchmarkTestProject = Join-Path $PSScriptRoot 'tests\MirrorPowerAI.Benchmark.Tests\MirrorPowerAI.Benchmark.Tests.csproj'
+Invoke-MirrorPowerAIDotNet -Arguments @(
+    'test', $benchmarkTestProject,
+    '-c', 'Release',
+    '--no-build',
+    '--no-restore',
+    '--logger', 'trx;LogFileName=benchmark-tests.trx',
+    '--results-directory', $resultsDirectory
+)

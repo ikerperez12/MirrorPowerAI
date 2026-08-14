@@ -1,0 +1,4 @@
+# The verified model is downloaded to %LOCALAPPDATA% by default. Keep it out of
+# source control even if --model-dir is intentionally pointed at this project.
+*.bin
+*.download

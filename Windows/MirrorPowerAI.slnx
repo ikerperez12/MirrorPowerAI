@@ -6,5 +6,9 @@
   <Folder Name="/tests/">
     <Project Path="tests/MirrorPowerAI.Core.Tests/MirrorPowerAI.Core.Tests.csproj" />
     <Project Path="tests/MirrorPowerAI.Windows.Tests/MirrorPowerAI.Windows.Tests.csproj" />
+    <Project Path="tests/MirrorPowerAI.Benchmark.Tests/MirrorPowerAI.Benchmark.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/MirrorPowerAI.Benchmark/MirrorPowerAI.Benchmark.csproj" />
   </Folder>
 </Solution>
