@@ -180,13 +180,37 @@ public sealed class SessionControllerTests
     }
 
     [Fact]
+    public async Task ToggleAsync_StartFailsAfterCaptureBegan_StopsCaptureAndKeepsSafeFailure()
+    {
+        var audio = new FakeAudioCaptureService
+        {
+            CaptureBeforeStartHandler = true,
+            StartHandler = _ => throw new InvalidOperationException("sensitive device detail"),
+        };
+        await using var controller = CreateController(audio);
+
+        await controller.ToggleAsync();
+
+        Assert.False(audio.IsCapturing);
+        Assert.Equal(1, audio.StopCount);
+        Assert.Equal(SessionState.Error, controller.State);
+        Assert.DoesNotContain(
+            "sensitive device detail",
+            controller.LastFailure?.Message ?? string.Empty,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CaptureDeadline_WhenReached_StopsAndProcessesAutomatically()
     {
         var options = new MirrorPowerAIOptions
         {
             MaxCaptureDuration = TimeSpan.FromMilliseconds(30),
         };
-        var audio = new FakeAudioCaptureService();
+        var audio = new FakeAudioCaptureService
+        {
+            Audio = new(new byte[] { 1, 2, 3, 4 }, TimeSpan.FromMilliseconds(20)),
+        };
         await using var controller = CreateController(audio, options: options);
         var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         controller.StateChanged += (_, args) =>
@@ -212,6 +236,23 @@ public sealed class SessionControllerTests
             Audio = new(Array.Empty<byte>(), TimeSpan.Zero, containsAudibleSignal: false),
         };
         await using var controller = CreateController(audio);
+
+        await controller.ToggleAsync();
+        await controller.ToggleAsync();
+
+        Assert.Equal(SessionErrorKind.EmptyAudio, controller.LastFailure?.Kind);
+        Assert.Equal(SessionState.Error, controller.State);
+    }
+
+    [Fact]
+    public async Task ToggleAsync_AudioBeyondConfiguredDuration_IsRejected()
+    {
+        var options = new MirrorPowerAIOptions { MaxCaptureDuration = TimeSpan.FromSeconds(10) };
+        var audio = new FakeAudioCaptureService
+        {
+            Audio = new(new byte[] { 1, 2, 3, 4 }, TimeSpan.FromSeconds(10) + TimeSpan.FromMilliseconds(1)),
+        };
+        await using var controller = CreateController(audio, options: options);
 
         await controller.ToggleAsync();
         await controller.ToggleAsync();

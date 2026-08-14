@@ -7,6 +7,9 @@ namespace MirrorPowerAI.Core.Gemini;
 /// </summary>
 public sealed partial class GeminiClientOptions
 {
+    private const string AllowedApiHost = "generativelanguage.googleapis.com";
+    private const string AllowedApiPath = "/v1beta/";
+
     /// <summary>
     /// Gets or sets the HTTPS Gemini API base address.
     /// </summary>
@@ -48,9 +51,19 @@ public sealed partial class GeminiClientOptions
     /// <exception cref="ArgumentException">Thrown when an option is invalid.</exception>
     public void EnsureValid()
     {
-        if (ApiBaseUri is null || !ApiBaseUri.IsAbsoluteUri || ApiBaseUri.Scheme != Uri.UriSchemeHttps)
+        if (ApiBaseUri is null ||
+            !ApiBaseUri.IsAbsoluteUri ||
+            ApiBaseUri.Scheme != Uri.UriSchemeHttps ||
+            !ApiBaseUri.IsDefaultPort ||
+            !string.Equals(ApiBaseUri.IdnHost, AllowedApiHost, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(ApiBaseUri.AbsolutePath, AllowedApiPath, StringComparison.Ordinal) ||
+            !string.IsNullOrEmpty(ApiBaseUri.UserInfo) ||
+            !string.IsNullOrEmpty(ApiBaseUri.Query) ||
+            !string.IsNullOrEmpty(ApiBaseUri.Fragment))
         {
-            throw new ArgumentException("La dirección base de Gemini debe ser una URL HTTPS absoluta.", nameof(ApiBaseUri));
+            throw new ArgumentException(
+                "La dirección base debe ser el endpoint oficial HTTPS de Gemini v1beta.",
+                nameof(ApiBaseUri));
         }
 
         if (string.IsNullOrWhiteSpace(Model) || Model.Length > 128 || !ModelPattern().IsMatch(Model))

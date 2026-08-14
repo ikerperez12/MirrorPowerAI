@@ -18,11 +18,18 @@ internal sealed class FakeAudioCaptureService : IAudioCaptureService
 
     public Func<CancellationToken, Task>? StartHandler { get; set; }
 
+    public bool CaptureBeforeStartHandler { get; set; }
+
     public Func<CancellationToken, Task<CapturedAudio>>? StopHandler { get; set; }
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         StartCount++;
+        if (CaptureBeforeStartHandler)
+        {
+            IsCapturing = true;
+        }
+
         if (StartHandler is not null)
         {
             await StartHandler(cancellationToken);

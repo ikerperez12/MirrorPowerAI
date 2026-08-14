@@ -49,13 +49,11 @@ public sealed class GeminiApiException : Exception
     /// <param name="kind">The stable failure category.</param>
     /// <param name="message">A safe explanation without sensitive content.</param>
     /// <param name="statusCode">The HTTP status code, when one was received.</param>
-    /// <param name="innerException">The underlying parsing or network exception.</param>
     public GeminiApiException(
         GeminiErrorKind kind,
         string message,
-        HttpStatusCode? statusCode = null,
-        Exception? innerException = null)
-        : base(message, innerException)
+        HttpStatusCode? statusCode = null)
+        : base(message)
     {
         Kind = kind;
         StatusCode = statusCode;

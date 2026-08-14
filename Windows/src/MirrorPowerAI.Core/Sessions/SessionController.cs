@@ -186,12 +186,14 @@ public sealed class SessionController : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
+            await StopCaptureAfterFailedStartAsync().ConfigureAwait(false);
             CleanupSession();
             TransitionTo(SessionState.Idle);
             throw;
         }
         catch (Exception exception) when (exception is not SessionBusyException)
         {
+            await StopCaptureAfterFailedStartAsync().ConfigureAwait(false);
             CleanupSession();
             SetFailure(exception);
         }
@@ -379,9 +381,28 @@ public sealed class SessionController : IAsyncDisposable
             throw new SessionOperationException(SessionErrorKind.EmptyAudio);
         }
 
-        if (audio.Duration > _options.MaxCaptureDuration + TimeSpan.FromSeconds(1))
+        if (audio.Duration > _options.MaxCaptureDuration)
         {
             throw new SessionOperationException(SessionErrorKind.EmptyAudio);
+        }
+    }
+
+    private async Task StopCaptureAfterFailedStartAsync()
+    {
+        if (!_audioCaptureService.IsCapturing)
+        {
+            return;
+        }
+
+        try
+        {
+            using var discardedAudio = await _audioCaptureService
+                .StopAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Preserve the original startup failure while making cleanup best-effort.
         }
     }
 

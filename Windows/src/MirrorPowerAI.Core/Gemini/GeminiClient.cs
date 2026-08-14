@@ -194,12 +194,11 @@ public sealed class GeminiClient
                         responseBytes,
                         SerializerOptions);
                 }
-                catch (JsonException exception)
+                catch (JsonException)
                 {
                     throw new GeminiApiException(
                         GeminiErrorKind.InvalidResponse,
-                        "Gemini devolvió una respuesta JSON no válida.",
-                        innerException: exception);
+                        "Gemini devolvió una respuesta JSON no válida.");
                 }
 
                 if (!string.IsNullOrWhiteSpace(responsePayload?.PromptFeedback?.BlockReason) ||
@@ -230,19 +229,17 @@ public sealed class GeminiClient
                 CryptographicOperations.ZeroMemory(responseBytes);
             }
         }
-        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             throw new GeminiApiException(
                 GeminiErrorKind.Timeout,
-                "La petición a Gemini agotó el tiempo de espera.",
-                innerException: exception);
+                "La petición a Gemini agotó el tiempo de espera.");
         }
-        catch (HttpRequestException exception)
+        catch (HttpRequestException)
         {
             throw new GeminiApiException(
                 GeminiErrorKind.ServiceUnavailable,
-                "No se pudo conectar de forma segura con Gemini.",
-                innerException: exception);
+                "No se pudo conectar de forma segura con Gemini.");
         }
     }
 

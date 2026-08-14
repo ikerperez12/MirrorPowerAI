@@ -145,7 +145,8 @@ public sealed class GeminiClientTests
             client.GenerateAnswerAsync("pregunta", null));
 
         Assert.Equal(GeminiErrorKind.ServiceUnavailable, exception.Kind);
-        Assert.DoesNotContain("sensitive network detail", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("sensitive network detail", exception.ToString(), StringComparison.Ordinal);
+        Assert.Null(exception.InnerException);
     }
 
     [Theory]
@@ -232,6 +233,22 @@ public sealed class GeminiClientTests
     {
         using var httpClient = new HttpClient();
         var options = new GeminiClientOptions { ApiBaseUri = new Uri("http://example.test/") };
+
+        Assert.Throws<ArgumentException>(() =>
+            new GeminiClient(httpClient, new StaticApiKeyProvider("key"), options));
+    }
+
+    [Theory]
+    [InlineData("https://example.test/v1beta/")]
+    [InlineData("https://generativelanguage.googleapis.com.evil.test/v1beta/")]
+    [InlineData("https://user@generativelanguage.googleapis.com/v1beta/")]
+    [InlineData("https://generativelanguage.googleapis.com/v1beta/?redirect=evil")]
+    [InlineData("https://generativelanguage.googleapis.com/v1beta/#fragment")]
+    [InlineData("https://generativelanguage.googleapis.com/v1/")]
+    public void Constructor_NonOfficialBaseUri_RejectsBeforeApiKeyCanBeSent(string endpoint)
+    {
+        using var httpClient = new HttpClient();
+        var options = new GeminiClientOptions { ApiBaseUri = new Uri(endpoint) };
 
         Assert.Throws<ArgumentException>(() =>
             new GeminiClient(httpClient, new StaticApiKeyProvider("key"), options));
