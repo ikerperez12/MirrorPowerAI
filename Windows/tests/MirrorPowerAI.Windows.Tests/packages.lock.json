@@ -198,6 +198,7 @@
           "Whisper.net.Runtime.Metal": "1.9.1"
         }
       }
-    }
+    },
+    "net10.0-windows7.0/win-x64": {}
   }
 }
