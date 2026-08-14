@@ -2,3 +2,11 @@
 MirrorPowerAI.app/
 .DS_Store
 *.xcodeproj
+
+# Windows/.NET build outputs
+.vs/
+**/bin/
+**/obj/
+**/TestResults/
+Windows/artifacts/
+Windows/models/

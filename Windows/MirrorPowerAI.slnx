@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MirrorPowerAI.Core/MirrorPowerAI.Core.csproj" />
+    <Project Path="src/MirrorPowerAI.Windows/MirrorPowerAI.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MirrorPowerAI.Core.Tests/MirrorPowerAI.Core.Tests.csproj" />
+    <Project Path="tests/MirrorPowerAI.Windows.Tests/MirrorPowerAI.Windows.Tests.csproj" />
+  </Folder>
+</Solution>
