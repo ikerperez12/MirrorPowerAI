@@ -42,6 +42,16 @@ public partial class App : System.Windows.Application, IDisposable
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        if (e.Args.Any(static argument => string.Equals(
+                argument,
+                "--verify-overlay",
+                StringComparison.Ordinal)))
+        {
+            VerifyOverlayProtectionAndExit();
+            return;
+        }
+
         var localization = LocalizationService.Current;
         var dpiResult = DpiAwareness.TryEnablePerMonitorV2();
 
@@ -91,6 +101,29 @@ public partial class App : System.Windows.Application, IDisposable
         {
             _trayIcon.ShowError(localization["OverlayProtectionFailed"]);
         }
+    }
+
+    private void VerifyOverlayProtectionAndExit()
+    {
+        var overlay = new OverlayWindow();
+        var exitCode = 1;
+
+        try
+        {
+            var protection = new OverlayProtectionService().ProtectAndVerify(overlay);
+            exitCode = protection.IsProtected ? 0 : 1;
+        }
+        catch (Exception)
+        {
+            // This diagnostic intentionally returns only a pass/fail exit code and never emits window data.
+        }
+        finally
+        {
+            overlay.ClearSensitiveContent();
+            overlay.Close();
+        }
+
+        Shutdown(exitCode);
     }
 
     /// <summary>
