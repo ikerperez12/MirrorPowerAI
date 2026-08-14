@@ -26,7 +26,7 @@ Invoke-MirrorPowerAIDotNet -Arguments @(
     'publish', $project,
     '-c', 'Release',
     '-r', 'win-x64',
-    '--self-contained', 'false',
+    '--self-contained', 'true',
     '--no-restore',
     '-o', $publishDirectory
 )

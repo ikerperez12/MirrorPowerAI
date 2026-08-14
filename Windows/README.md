@@ -33,7 +33,7 @@ Desde la raíz del repositorio:
 .\Windows\build.ps1
 ```
 
-El script ejecuta preflight, restore bloqueado, build Release, xUnit, cobertura del núcleo y publicación framework-dependent `win-x64`. La salida local queda en `Windows\artifacts\win-x64` y no se versiona.
+El script ejecuta preflight, restore bloqueado, build Release, xUnit, cobertura del núcleo y publicación autocontenida `win-x64`. La salida local queda en `Windows\artifacts\win-x64` y no se versiona; el equipo de destino no necesita instalar el runtime de .NET.
 
 Comandos parciales:
 
