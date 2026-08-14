@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /Windows
+    target-branch: feat/windows-native
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: feat/windows-native
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
