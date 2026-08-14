@@ -77,3 +77,7 @@ Primer uso:
 - Sin límite de longitud de escucha explícito, pero `SFSpeechRecognizer` funciona
   mejor con fragmentos cortos (unos pocos minutos como máximo).
 - Modelo Gemini por defecto: `gemini-3.5-flash` (editable en `GeminiClient.swift`).
+
+## Windows 11
+
+La implementación nativa para Windows 11 x64 se mantiene aislada en [`Windows/`](Windows/README.md). Incluye WPF, WASAPI loopback, Whisper local, Gemini Audio opcional, DPAPI y un overlay protegido mediante las APIs de Windows.
