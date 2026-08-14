@@ -49,8 +49,9 @@ El overlay usa una ventana superior opaca (`AllowsTransparency=false`). Sólo mu
 
 ## Datos persistentes
 
-- `%LOCALAPPDATA%\MirrorPowerAI\settings.json`: opciones no sensibles.
-- `%LOCALAPPDATA%\MirrorPowerAI\secret.bin`: API key cifrada para el usuario actual.
+- `%LOCALAPPDATA%\MirrorPowerAI\settings.json`: opciones no sensibles; excluye API key y contexto.
+- `%LOCALAPPDATA%\MirrorPowerAI\secrets\gemini-api-key.bin`: API key cifrada para el usuario actual.
+- `%LOCALAPPDATA%\MirrorPowerAI\secrets\project-context.bin`: contexto cifrado para el usuario actual.
 - `%LOCALAPPDATA%\MirrorPowerAI\models\ggml-base.bin`: modelo verificado.
 
 No se persisten audio, transcripciones, respuestas ni contexto en logs.

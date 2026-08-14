@@ -7,7 +7,6 @@ Las versiones se fijan en `Windows/Directory.Packages.props` y se resuelven con 
 | NAudio | 2.3.0 | WASAPI loopback y formatos de audio | MIT |
 | Whisper.net | 1.9.1 | API .NET para whisper.cpp | MIT |
 | Whisper.net.Runtime | 1.9.1 | Runtime CPU nativo | MIT |
-| System.Security.Cryptography.ProtectedData | 10.0.0 | DPAPI | MIT |
 | xunit | 2.9.3 | Pruebas | Apache-2.0 |
 | xunit.runner.visualstudio | 3.1.4 | Descubrimiento de pruebas | Apache-2.0 |
 | Microsoft.NET.Test.Sdk | 17.14.1 | Host de pruebas | MIT |

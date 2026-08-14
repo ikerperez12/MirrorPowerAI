@@ -3,7 +3,7 @@
 ## Controles implementados
 
 - Secretos protegidos con DPAPI `CurrentUser`, nunca en `settings.json`.
-- Peticiones HTTPS con un `HttpClient` reutilizado, cancelación y timeout.
+- Peticiones HTTPS con un `HttpClient` reutilizado, cancelación y timeout; las redirecciones automáticas están desactivadas antes de añadir la API key de Gemini.
 - Sin reintentos automáticos de peticiones POST a Gemini.
 - Respuestas externas renderizadas únicamente como texto plano.
 - Modelo Whisper descargado con URL fijada, escritura atómica, tamaño y SHA-256 verificados.

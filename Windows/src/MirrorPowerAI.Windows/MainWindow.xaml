@@ -1,12 +1,135 @@
-﻿<Window x:Class="MirrorPowerAI.Windows.MainWindow"
+<Window x:Class="MirrorPowerAI.Windows.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:MirrorPowerAI.Windows"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+        xmlns:loc="clr-namespace:MirrorPowerAI.Windows.Resources"
+        Title="{loc:Loc SettingsTitle}"
+        automation:AutomationProperties.Name="{loc:Loc SettingsTitle}"
+        Width="760"
+        Height="720"
+        MinWidth="520"
+        MinHeight="520"
+        ShowInTaskbar="True"
+        WindowStartupLocation="CenterScreen"
+        Closing="OnWindowClosing">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock FontSize="26"
+                       FontWeight="SemiBold"
+                       automation:AutomationProperties.HeadingLevel="Level1"
+                       Text="{loc:Loc SettingsTitle}" />
+            <TextBlock Margin="0,6,0,0"
+                       TextWrapping="Wrap"
+                       Text="{loc:Loc SettingsIntro}" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Focusable="False">
+            <StackPanel Margin="0,0,12,0">
+                <Label Padding="0,0,0,4"
+                       FontWeight="SemiBold"
+                       Target="{Binding ElementName=ApiKeyBox}"
+                       Content="{loc:Loc ApiKeyLabel}" />
+                <PasswordBox x:Name="ApiKeyBox"
+                             MaxLength="512"
+                             automation:AutomationProperties.Name="{loc:Loc ApiKeyLabel}"
+                             automation:AutomationProperties.HelpText="{loc:Loc ApiKeyHelp}" />
+                <TextBlock Margin="0,4,0,16"
+                           TextWrapping="Wrap"
+                           Text="{loc:Loc ApiKeyHelp}" />
+
+                <Label Padding="0,0,0,4"
+                       FontWeight="SemiBold"
+                       Target="{Binding ElementName=ContextBox}"
+                       Content="{loc:Loc ContextLabel}" />
+                <TextBox x:Name="ContextBox"
+                         Height="120"
+                         MaxLength="16000"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         automation:AutomationProperties.Name="{loc:Loc ContextLabel}"
+                         automation:AutomationProperties.HelpText="{loc:Loc ContextHelp}" />
+                <TextBlock Margin="0,4,0,16"
+                           TextWrapping="Wrap"
+                           Text="{loc:Loc ContextHelp}" />
+
+                <GroupBox Header="{loc:Loc ProviderGroup}" Margin="0,0,0,16" Padding="12">
+                    <StackPanel>
+                        <Label Padding="0,0,0,4"
+                               FontWeight="SemiBold"
+                               Target="{Binding ElementName=ProviderBox}"
+                               Content="{loc:Loc ProviderLabel}" />
+                        <ComboBox x:Name="ProviderBox"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Id"
+                                  SelectionChanged="OnProviderSelectionChanged"
+                                  automation:AutomationProperties.Name="{loc:Loc ProviderLabel}" />
+
+                        <Label Margin="0,12,0,0"
+                               Padding="0,0,0,4"
+                               FontWeight="SemiBold"
+                               Target="{Binding ElementName=LanguageBox}"
+                               Content="{loc:Loc LanguageLabel}" />
+                        <ComboBox x:Name="LanguageBox"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Id"
+                                  automation:AutomationProperties.Name="{loc:Loc LanguageLabel}" />
+
+                        <Label Margin="0,12,0,0"
+                               Padding="0,0,0,4"
+                               FontWeight="SemiBold"
+                               Target="{Binding ElementName=DeviceBox}"
+                               Content="{loc:Loc DeviceLabel}" />
+                        <ComboBox x:Name="DeviceBox"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Id"
+                                  automation:AutomationProperties.Name="{loc:Loc DeviceLabel}" />
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox x:Name="CloudConsentGroup"
+                          Header="{loc:Loc CloudConsentLabel}"
+                          Margin="0,0,0,16"
+                          Padding="12">
+                    <CheckBox x:Name="CloudConsentBox"
+                              MinHeight="32"
+                              VerticalContentAlignment="Center"
+                              automation:AutomationProperties.Name="{loc:Loc CloudConsentLabel}">
+                        <TextBlock MaxWidth="620"
+                                   TextWrapping="Wrap"
+                                   Text="{loc:Loc CloudConsentText}" />
+                    </CheckBox>
+                </GroupBox>
+
+                <TextBlock x:Name="StatusText"
+                           Margin="0,0,0,12"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed"
+                           Focusable="True"
+                           automation:AutomationProperties.LiveSetting="Assertive" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2"
+                    Margin="0,12,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button IsDefault="True"
+                    Click="OnSaveClick"
+                    Content="{loc:Loc SaveButton}" />
+            <Button IsCancel="True"
+                    Click="OnCancelClick"
+                    Content="{loc:Loc CancelButton}" />
+        </StackPanel>
     </Grid>
 </Window>

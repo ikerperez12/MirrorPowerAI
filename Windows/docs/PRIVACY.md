@@ -21,7 +21,7 @@
 - No se crean WAV temporales.
 - Los diagnósticos excluyen API key, contexto, audio, transcripción y respuesta.
 - La configuración no sensible y el consentimiento se guardan en JSON bajo `%LOCALAPPDATA%\MirrorPowerAI`.
-- La API key se cifra con DPAPI para el usuario de Windows actual.
+- La API key y el contexto se cifran por separado con DPAPI para el usuario de Windows actual.
 
 ## Control del usuario
 

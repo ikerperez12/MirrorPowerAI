@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType><xsd:choice maxOccurs="unbounded">
+        <xsd:element name="data"><xsd:complexType><xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /></xsd:sequence><xsd:attribute name="name" use="required" type="xsd:string" /><xsd:attribute name="space" type="xsd:string" /></xsd:complexType></xsd:element>
+        <xsd:element name="resheader"><xsd:complexType><xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /></xsd:sequence><xsd:attribute name="name" use="required" type="xsd:string" /></xsd:complexType></xsd:element>
+      </xsd:choice></xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AppName" xml:space="preserve"><value>MirrorPowerAI</value></data>
+  <data name="AlreadyRunningTitle" xml:space="preserve"><value>MirrorPowerAI ya está abierto</value></data>
+  <data name="AlreadyRunningMessage" xml:space="preserve"><value>Ya existe una instancia de MirrorPowerAI para este usuario.</value></data>
+  <data name="TrayToggleStart" xml:space="preserve"><value>Iniciar captura</value></data>
+  <data name="TrayToggleStop" xml:space="preserve"><value>Detener captura</value></data>
+  <data name="TrayToggleCancel" xml:space="preserve"><value>Cancelar procesamiento</value></data>
+  <data name="TrayShowResponse" xml:space="preserve"><value>Mostrar respuesta</value></data>
+  <data name="TraySettings" xml:space="preserve"><value>Configuración</value></data>
+  <data name="TrayExit" xml:space="preserve"><value>Salir</value></data>
+  <data name="TrayStatusIdle" xml:space="preserve"><value>Estado: preparado</value></data>
+  <data name="TrayStatusCapturing" xml:space="preserve"><value>Estado: capturando audio</value></data>
+  <data name="TrayStatusBusy" xml:space="preserve"><value>Estado: procesando</value></data>
+  <data name="TrayStatusError" xml:space="preserve"><value>Estado: error</value></data>
+  <data name="TrayReady" xml:space="preserve"><value>MirrorPowerAI está listo. Pulsa Alt+Mayús+L para iniciar.</value></data>
+  <data name="HotKeyUnavailable" xml:space="preserve"><value>No se pudo registrar Alt+Mayús+L. Usa el menú de la bandeja o libera ese atajo.</value></data>
+  <data name="NoResponse" xml:space="preserve"><value>Aún no hay ninguna respuesta que mostrar.</value></data>
+  <data name="OverlayProtectionFailed" xml:space="preserve"><value>Windows no pudo verificar la exclusión de captura. El contenido no se mostrará.</value></data>
+  <data name="SessionUnavailable" xml:space="preserve"><value>El motor de sesión todavía no está conectado.</value></data>
+  <data name="UnexpectedError" xml:space="preserve"><value>La operación no pudo completarse.</value></data>
+  <data name="SessionInvalidConfiguration" xml:space="preserve"><value>Revisa la configuración antes de iniciar la captura.</value></data>
+  <data name="SessionProviderUnavailable" xml:space="preserve"><value>El proveedor de transcripción seleccionado no está disponible.</value></data>
+  <data name="SessionEmptyAudio" xml:space="preserve"><value>No se detectó audio de salida utilizable.</value></data>
+  <data name="SessionEmptyTranscript" xml:space="preserve"><value>No se pudo obtener una transcripción.</value></data>
+  <data name="SessionEmptyAnswer" xml:space="preserve"><value>Gemini no devolvió una respuesta utilizable.</value></data>
+  <data name="SessionConsentRequired" xml:space="preserve"><value>Autoriza explícitamente el envío de audio a Gemini.</value></data>
+  <data name="SessionGeminiError" xml:space="preserve"><value>Gemini no pudo completar la solicitud. Revisa la clave, la red y la cuota.</value></data>
+  <data name="SessionUnexpectedError" xml:space="preserve"><value>No se pudo completar la sesión. Revisa el dispositivo y vuelve a intentarlo.</value></data>
+  <data name="SettingsTitle" xml:space="preserve"><value>Configuración de MirrorPowerAI</value></data>
+  <data name="SettingsIntro" xml:space="preserve"><value>Configura la privacidad, el idioma y el dispositivo de salida. Los cambios se guardan sólo para tu usuario.</value></data>
+  <data name="ApiKeyLabel" xml:space="preserve"><value>Clave API de Gemini</value></data>
+  <data name="ApiKeyHelp" xml:space="preserve"><value>Se cifra con DPAPI para este usuario de Windows y nunca se escribe en texto plano.</value></data>
+  <data name="ContextLabel" xml:space="preserve"><value>Contexto del proyecto</value></data>
+  <data name="ContextHelp" xml:space="preserve"><value>Máximo 16.000 caracteres. Se envía sólo al solicitar la respuesta, no al transcribir con Gemini Audio.</value></data>
+  <data name="ProviderGroup" xml:space="preserve"><value>Transcripción</value></data>
+  <data name="ProviderLabel" xml:space="preserve"><value>Proveedor</value></data>
+  <data name="ProviderLocal" xml:space="preserve"><value>Whisper local (predeterminado)</value></data>
+  <data name="ProviderGemini" xml:space="preserve"><value>Gemini Audio (nube)</value></data>
+  <data name="LanguageLabel" xml:space="preserve"><value>Idioma</value></data>
+  <data name="LanguageSpanish" xml:space="preserve"><value>Español</value></data>
+  <data name="LanguageEnglish" xml:space="preserve"><value>Inglés</value></data>
+  <data name="LanguageAuto" xml:space="preserve"><value>Detección automática</value></data>
+  <data name="DeviceLabel" xml:space="preserve"><value>Dispositivo de salida</value></data>
+  <data name="DefaultAudioDevice" xml:space="preserve"><value>Dispositivo predeterminado de Windows</value></data>
+  <data name="CloudConsentLabel" xml:space="preserve"><value>Consentimiento para Gemini Audio</value></data>
+  <data name="CloudConsentText" xml:space="preserve"><value>Acepto enviar la grabación a Google Gemini únicamente cuando elija Gemini Audio. No habrá cambio automático desde Whisper local.</value></data>
+  <data name="SaveButton" xml:space="preserve"><value>Guardar</value></data>
+  <data name="CancelButton" xml:space="preserve"><value>Cancelar</value></data>
+  <data name="SettingsSaved" xml:space="preserve"><value>Configuración guardada.</value></data>
+  <data name="SettingsSaveError" xml:space="preserve"><value>No se pudo guardar la configuración.</value></data>
+  <data name="SettingsLoadError" xml:space="preserve"><value>Parte de la configuración protegida no pudo leerse. Revisa los campos antes de guardar.</value></data>
+  <data name="ApiKeyRequired" xml:space="preserve"><value>Introduce una clave API de Gemini.</value></data>
+  <data name="ConsentRequired" xml:space="preserve"><value>Para usar Gemini Audio debes aceptar explícitamente el envío de la grabación.</value></data>
+  <data name="OverlayTitle" xml:space="preserve"><value>Respuesta de MirrorPowerAI</value></data>
+  <data name="QuestionHeading" xml:space="preserve"><value>Pregunta detectada</value></data>
+  <data name="AnswerHeading" xml:space="preserve"><value>Respuesta</value></data>
+  <data name="CloseButton" xml:space="preserve"><value>Cerrar</value></data>
+</root>

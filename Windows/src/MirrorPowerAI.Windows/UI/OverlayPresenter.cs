@@ -1,0 +1,106 @@
+using System.Windows.Interop;
+using System.Windows.Threading;
+using MirrorPowerAI.Core.Overlay;
+using MirrorPowerAI.Windows.Platform;
+
+namespace MirrorPowerAI.Windows.UI;
+
+/// <summary>
+/// Creates protected overlays and fails closed before assigning sensitive text.
+/// </summary>
+public sealed class OverlayPresenter
+{
+    private readonly IOverlayProtectionService _protectionService;
+    private OverlayWindow? _window;
+
+    /// <summary>Initializes the presenter.</summary>
+    /// <param name="protectionService">Capture-exclusion implementation.</param>
+    public OverlayPresenter(IOverlayProtectionService protectionService)
+    {
+        _protectionService = protectionService ?? throw new ArgumentNullException(nameof(protectionService));
+    }
+
+    /// <summary>
+    /// Shows plain text only after Windows confirms <c>WDA_EXCLUDEFROMCAPTURE</c>.
+    /// </summary>
+    /// <param name="question">Transcribed question.</param>
+    /// <param name="answer">Generated answer.</param>
+    /// <returns>A result safe to report without revealing content.</returns>
+    public OverlayShowResult TryShow(string? question, string answer)
+    {
+        Dispatcher.CurrentDispatcher.VerifyAccess();
+        ArgumentException.ThrowIfNullOrWhiteSpace(answer);
+
+        Close();
+        var candidate = new OverlayWindow();
+        var protection = _protectionService is OverlayProtectionService windowsProtection
+            ? windowsProtection.ProtectAndVerify(candidate)
+            : ProtectThroughContract(_protectionService, candidate);
+        if (!protection.IsProtected)
+        {
+            candidate.ClearSensitiveContent();
+            candidate.Close();
+            return new OverlayShowResult(false, protection.Win32Error, protection.Message);
+        }
+
+        candidate.SetProtectedContent(question, answer);
+        candidate.PositionOnActiveMonitor();
+        candidate.Closed += OnWindowClosed;
+        _window = candidate;
+        candidate.Show();
+        candidate.Activate();
+        return OverlayShowResult.Success;
+    }
+
+    private static CaptureProtectionResult ProtectThroughContract(
+        IOverlayProtectionService protectionService,
+        OverlayWindow window)
+    {
+        if (window.AllowsTransparency)
+        {
+            return new CaptureProtectionResult(false, 0, "Capture protection requires a non-layered WPF window.");
+        }
+
+        var windowHandle = new WindowInteropHelper(window).EnsureHandle();
+        return protectionService.TryApplyAndVerify(windowHandle) && protectionService.IsProtected(windowHandle)
+            ? CaptureProtectionResult.Success
+            : new CaptureProtectionResult(false, 0, "Capture exclusion could not be verified.");
+    }
+
+    /// <summary>Closes the current overlay and clears its text.</summary>
+    public void Close()
+    {
+        if (_window is null)
+        {
+            return;
+        }
+
+        var window = _window;
+        _window = null;
+        window.Closed -= OnWindowClosed;
+        window.ClearSensitiveContent();
+        window.Close();
+    }
+
+    private void OnWindowClosed(object? sender, EventArgs eventArgs)
+    {
+        if (sender is OverlayWindow window)
+        {
+            window.Closed -= OnWindowClosed;
+        }
+
+        _window = null;
+    }
+}
+
+/// <summary>
+/// Describes a protected overlay display attempt.
+/// </summary>
+/// <param name="WasShown">Whether content was shown under verified protection.</param>
+/// <param name="Win32Error">The platform error, or zero when unavailable.</param>
+/// <param name="DiagnosticMessage">A non-sensitive diagnostic.</param>
+public sealed record OverlayShowResult(bool WasShown, int Win32Error, string DiagnosticMessage)
+{
+    /// <summary>Represents a successfully displayed protected overlay.</summary>
+    public static OverlayShowResult Success { get; } = new(true, 0, string.Empty);
+}

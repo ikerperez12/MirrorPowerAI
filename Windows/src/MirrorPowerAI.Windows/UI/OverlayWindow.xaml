@@ -1,0 +1,75 @@
+<Window x:Class="MirrorPowerAI.Windows.UI.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+        xmlns:loc="clr-namespace:MirrorPowerAI.Windows.Resources"
+        Title="{loc:Loc OverlayTitle}"
+        automation:AutomationProperties.Name="{loc:Loc OverlayTitle}"
+        Width="720"
+        Height="480"
+        MinWidth="420"
+        MinHeight="280"
+        AllowsTransparency="False"
+        Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
+        Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="CanResizeWithGrip"
+        WindowStartupLocation="Manual"
+        KeyDown="OnWindowKeyDown">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Margin="0,0,0,8"
+                   FontSize="24"
+                   FontWeight="SemiBold"
+                   automation:AutomationProperties.HeadingLevel="Level1"
+                   Text="{loc:Loc OverlayTitle}" />
+
+        <StackPanel Grid.Row="1" Margin="0,0,0,14">
+            <Label x:Name="QuestionLabel"
+                   Padding="0,0,0,4"
+                   FontWeight="SemiBold"
+                   automation:AutomationProperties.HeadingLevel="Level2"
+                   Target="{Binding ElementName=QuestionTextBox}"
+                   Content="{loc:Loc QuestionHeading}" />
+            <TextBox x:Name="QuestionTextBox"
+                     MaxHeight="110"
+                     IsReadOnly="True"
+                     IsReadOnlyCaretVisible="True"
+                     TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto"
+                     automation:AutomationProperties.Name="{loc:Loc QuestionHeading}" />
+        </StackPanel>
+
+        <Label Grid.Row="2"
+               Padding="0,0,0,4"
+               FontWeight="SemiBold"
+               automation:AutomationProperties.HeadingLevel="Level2"
+               Target="{Binding ElementName=AnswerTextBox}"
+               Content="{loc:Loc AnswerHeading}" />
+        <TextBox x:Name="AnswerTextBox"
+                 Grid.Row="3"
+                 IsReadOnly="True"
+                 IsReadOnlyCaretVisible="True"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"
+                 automation:AutomationProperties.LiveSetting="Polite"
+                 automation:AutomationProperties.Name="{loc:Loc AnswerHeading}" />
+
+        <Button Grid.Row="4"
+                Margin="4,14,4,0"
+                HorizontalAlignment="Right"
+                IsCancel="True"
+                Click="OnCloseClick"
+                Content="{loc:Loc CloseButton}" />
+    </Grid>
+</Window>
