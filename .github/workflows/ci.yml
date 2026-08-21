@@ -48,6 +48,11 @@ jobs:
         # WDA verification needs a local interactive DWM desktop and is deliberately gated by -ReleaseGate.
         run: ./Windows/build.ps1
 
+      - name: Verify portable provenance
+        shell: pwsh
+        # This is filesystem-only and validates the published inventory without requiring an interactive desktop.
+        run: ./Windows/verify-provenance.ps1
+
       - name: Verify formatting
         shell: pwsh
         run: dotnet format ./Windows/MirrorPowerAI.slnx --verify-no-changes --no-restore
