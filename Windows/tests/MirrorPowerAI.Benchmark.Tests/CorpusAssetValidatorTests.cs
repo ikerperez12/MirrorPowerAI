@@ -94,6 +94,84 @@ public sealed class CorpusAssetValidatorTests
         Assert.Contains("referencia", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ValidateAsync_Utf8BomReferenceWithMatchingHash_AcceptsUtf8Content()
+    {
+        using var corpus = new TemporaryCorpus();
+        var utf8WithBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+        var reference = utf8WithBom.GetPreamble()
+            .Concat(utf8WithBom.GetBytes("hola mundo"))
+            .ToArray();
+        var manifest = ReplaceReference(corpus, reference);
+        var validator = new CorpusAssetValidator();
+
+        await validator.ValidateAsync(manifest, CancellationToken.None);
+    }
+
+    [Theory]
+    [InlineData("utf16-le")]
+    [InlineData("utf16-be")]
+    [InlineData("utf32-le")]
+    [InlineData("utf32-be")]
+    public async Task ValidateAsync_NonUtf8BomReferenceWithMatchingHash_RejectsContent(string encodingName)
+    {
+        using var corpus = new TemporaryCorpus();
+        var reference = CreateNonUtf8BomReference(encodingName);
+        var manifest = ReplaceReference(corpus, reference);
+        var validator = new CorpusAssetValidator();
+
+        var exception = await Assert.ThrowsAsync<CorpusManifestLoader.CorpusManifestException>(() =>
+            validator.ValidateAsync(manifest, CancellationToken.None));
+
+        Assert.DoesNotContain(corpus.ReferencePath, exception.Message, StringComparison.Ordinal);
+        Assert.Contains("referencia", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_InvalidUtf8ReferenceWithMatchingHash_RejectsContent()
+    {
+        using var corpus = new TemporaryCorpus();
+        byte[] invalidUtf8 = [.. "hola "u8, 0xc3, 0x28];
+        var manifest = ReplaceReference(corpus, invalidUtf8);
+        var validator = new CorpusAssetValidator();
+
+        var exception = await Assert.ThrowsAsync<CorpusManifestLoader.CorpusManifestException>(() =>
+            validator.ValidateAsync(manifest, CancellationToken.None));
+
+        Assert.DoesNotContain(corpus.ReferencePath, exception.Message, StringComparison.Ordinal);
+        Assert.Contains("referencia", exception.Message, StringComparison.Ordinal);
+    }
+
+    private static CorpusManifest ReplaceReference(TemporaryCorpus corpus, byte[] reference)
+    {
+        File.WriteAllBytes(corpus.ReferencePath, reference);
+        var item = corpus.Manifest.Items[0] with
+        {
+            ReferenceSha256 = Convert.ToHexStringLower(SHA256.HashData(reference)),
+        };
+
+        return corpus.Manifest with
+        {
+            Items = [item],
+        };
+    }
+
+    private static byte[] CreateNonUtf8BomReference(string encodingName)
+    {
+        Encoding encoding = encodingName switch
+        {
+            "utf16-le" => new UnicodeEncoding(bigEndian: false, byteOrderMark: true),
+            "utf16-be" => new UnicodeEncoding(bigEndian: true, byteOrderMark: true),
+            "utf32-le" => new UTF32Encoding(bigEndian: false, byteOrderMark: true),
+            "utf32-be" => new UTF32Encoding(bigEndian: true, byteOrderMark: true),
+            _ => throw new ArgumentOutOfRangeException(nameof(encodingName)),
+        };
+
+        return encoding.GetPreamble()
+            .Concat(encoding.GetBytes("hola mundo"))
+            .ToArray();
+    }
+
     private static CorpusManifest CreateManifest(string directory, CorpusManifestItem item) =>
         new(
             "qa-spanish",
