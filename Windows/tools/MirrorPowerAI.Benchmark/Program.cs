@@ -22,7 +22,8 @@ internal static class Program
             return SuccessExitCode;
         }
 
-        if (parseResult.Error is not null || parseResult.Options is null)
+        if (parseResult.Error is not null
+            || (parseResult.Options is null && parseResult.CorpusOptions is null))
         {
             Console.Error.WriteLine($"Error: {parseResult.Error}");
             Console.Error.WriteLine();
@@ -40,12 +41,24 @@ internal static class Program
 
         try
         {
-            var result = await BenchmarkCommand.RunAsync(
-                    parseResult.Options,
-                    Console.Out,
-                    cancellationSource.Token)
-                .ConfigureAwait(false);
-            BenchmarkOutput.WriteResult(Console.Out, result, parseResult.Options.ShowTranscript);
+            if (parseResult.CorpusOptions is { } corpusOptions)
+            {
+                var corpusResult = await new CorpusBenchmarkCommand()
+                    .RunAndWriteAsync(corpusOptions, cancellationSource.Token)
+                    .ConfigureAwait(false);
+                CorpusBenchmarkOutput.WriteSummary(Console.Out, corpusResult);
+            }
+            else
+            {
+                var options = parseResult.Options!;
+                var result = await BenchmarkCommand.RunAsync(
+                        options,
+                        Console.Out,
+                        cancellationSource.Token)
+                    .ConfigureAwait(false);
+                BenchmarkOutput.WriteResult(Console.Out, result, options.ShowTranscript);
+            }
+
             return SuccessExitCode;
         }
         catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
@@ -56,6 +69,11 @@ internal static class Program
         catch (WhisperModelException)
         {
             Console.Error.WriteLine("Error de modelo: no se pudo preparar el modelo verificado.");
+            return ModelErrorExitCode;
+        }
+        catch (CachedWhisperModelException)
+        {
+            Console.Error.WriteLine("Error de modelo: no hay un modelo local verificado para el benchmark.");
             return ModelErrorExitCode;
         }
         catch (HttpRequestException)

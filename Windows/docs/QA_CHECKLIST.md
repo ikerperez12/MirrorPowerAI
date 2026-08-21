@@ -64,11 +64,13 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 
 ## Rendimiento de referencia
 
-- [ ] Corpus español versionado y sin datos privados.
-- [ ] Benchmark ejecutado sólo con WAV PCM mono de 16 kHz y 16 bits, sintético, público o autorizado; no se pasa audio privado porque la CLI muestra la transcripción.
-- [ ] Modelo Whisper base verificado antes de medir; su preparación/verificación queda registrada aparte del RTF.
-- [ ] Evidencia conservada: versión del código, corpus, comando, idioma, hilos, modelo, duración, WER y RTF.
+- [ ] Corpus español local, no versionado y sin datos privados, con identificador, revisión, licencia y origen HTTPS documentados.
+- [ ] Manifiesto de corpus JSON v1 cerrado: rutas WAV/TXT relativas y bajo el directorio del manifiesto, sin `.`/`..`, rutas absolutas, enlaces, junctions, reparse points, IDs o rutas normalizadas repetidos. La curación del corpus descarta además muestras repetidas por contenido o hard link.
+- [ ] Cada WAV PCM mono de 16 kHz/16 bits y referencia UTF-8 está autorizado; sus SHA-256 minúsculas están en el manifiesto y el preflight completo pasa antes de resolver modelo o inferir.
+- [ ] Preparar dependencias/restauración bloqueada antes de aislar la medición. Ejecutar exclusivamente la compuerta estable `./Windows/benchmark-corpus.ps1` con `-Model`, `-Language es` y `-Threads` explícitos: no ejecuta restore ni descarga el modelo. No redirigir ni conservar la salida de `--show-transcript`.
+- [ ] Modelo Whisper base presente localmente y verificado antes de medir; el modo estable falla cerrado con activos ya preparados si tamaño o SHA-256 no coinciden. Su verificación queda registrada aparte del RTF.
+- [ ] Evidencia conservada: commit, metadatos no sensibles y SHA-256 del manifiesto, modelo, idioma, hilos, duración total, WER y RTF agregados. El JSON no contiene rutas, IDs de elementos, audio, referencias, transcripciones ni hashes individuales.
 - [ ] Whisper base: WER normalizado menor o igual al 20 %.
 - [ ] Whisper base: factor de tiempo real menor o igual a 0,25 en Ryzen 7 7735HS.
 - [ ] Si base falla precisión, evaluar `small` y exigir factor menor o igual a 0,5.
-- [ ] La ejecución local o sintética no se acepta como sustituto del corpus español versionado ni de las demás pruebas manuales de esta matriz.
+- [ ] Una ejecución local o sintética no sustituye el corpus español ni las demás pruebas manuales de esta matriz.

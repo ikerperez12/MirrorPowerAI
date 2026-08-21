@@ -12,6 +12,21 @@ internal sealed record BenchmarkOptions(
     string? ReferenceFilePath,
     bool ShowTranscript);
 
+/// <summary>
+/// Describes an all-or-nothing corpus benchmark invocation. The corpus mode is
+/// deliberately distinct from the one-file diagnostic command so that stable
+/// measurements cannot silently inherit non-reproducible defaults.
+/// </summary>
+internal sealed record CorpusBenchmarkOptions(
+    string ManifestPath,
+    string OutputJsonPath,
+    string ModelDirectory,
+    BenchmarkModel Model,
+    string Language,
+    int ThreadCount,
+    bool RequireCachedModel,
+    bool Stable);
+
 internal enum BenchmarkModel
 {
     Base,
@@ -20,6 +35,7 @@ internal enum BenchmarkModel
 
 internal sealed record CommandLineParseResult(
     BenchmarkOptions? Options,
+    CorpusBenchmarkOptions? CorpusOptions,
     string? Error,
     bool ShowHelp);
 
@@ -31,23 +47,35 @@ internal static class CommandLineParser
         """
         MirrorPowerAI Whisper benchmark
 
-        Uso:
+        Uso individual:
           MirrorPowerAI.Benchmark --audio <archivo.wav> [opciones]
 
-        Opciones:
+        Uso de corpus reproducible:
+          MirrorPowerAI.Benchmark --corpus-manifest <corpus.json> --output-json <resultado.json>
+            --model <base|small> --language <código> --threads <1-32> [--stable]
+
+        Opciones de entrada individual:
           --audio <ruta>             WAV PCM normalizado: 16 kHz, mono, 16 bits (obligatorio).
           --reference <texto>        Referencia literal para calcular WER normalizado.
           --reference-file <ruta>    Archivo UTF-8 de referencia para calcular WER normalizado.
-          --language <código|auto>   Idioma de Whisper; valor predeterminado: auto.
-          --model <base|small>       Modelo fijado para medir; por defecto: base.
-          --threads <1-32>           Hilos de inferencia; por defecto: mitad de CPU, máximo 8.
+          --show-transcript          Muestra la transcripción completa. Puede contener datos sensibles.
+
+        Opciones de corpus:
+          --corpus-manifest <ruta>   Manifiesto JSON local v1 con WAV y referencias hasheados.
+          --output-json <ruta>       Resultado JSON seguro, escrito atómicamente tras éxito completo.
+          --stable                   Exige idioma es y un modelo local verificado; no usa red.
+          --require-cached-model     No descarga el modelo si falta o no pasa tamaño/SHA-256.
+
+        Opciones compartidas:
+          --language <código|auto>   Idioma de Whisper; individual: auto por defecto.
+          --model <base|small>       Modelo fijado para medir; individual: base por defecto.
+          --threads <1-32>           Hilos de inferencia; individual: mitad de CPU, máximo 8.
           --model-dir <ruta>         Directorio del modelo verificado. Por defecto:
                                      %LOCALAPPDATA%\MirrorPowerAI\models
-          --show-transcript          Muestra la transcripción completa. Puede contener datos sensibles.
           -h, --help, /?             Muestra esta ayuda.
 
-        --reference y --reference-file son mutuamente excluyentes. La descarga o
-        verificación del modelo se mide por separado y no forma parte del RTF. Por
+        --reference y --reference-file son mutuamente excluyentes. En corpus,
+        --model, --language, --threads y --output-json son obligatorios. Por
         privacidad, la salida normal no muestra la ruta del WAV ni la transcripción.
         """;
 
@@ -56,6 +84,8 @@ internal static class CommandLineParser
         ArgumentNullException.ThrowIfNull(arguments);
 
         string? audioPath = null;
+        string? corpusManifestPath = null;
+        string? outputJsonPath = null;
         string? modelDirectory = null;
         BenchmarkModel? model = null;
         string? language = null;
@@ -63,6 +93,11 @@ internal static class CommandLineParser
         string? referenceFilePath = null;
         int? threadCount = null;
         var showTranscript = false;
+        var requireCachedModel = false;
+        var stable = false;
+        var modelWasSpecified = false;
+        var languageWasSpecified = false;
+        var threadCountWasSpecified = false;
         var seenOptions = new HashSet<string>(StringComparer.Ordinal);
 
         for (var index = 0; index < arguments.Count; index++)
@@ -70,22 +105,36 @@ internal static class CommandLineParser
             var argument = arguments[index];
             if (argument is "-h" or "--help" or "/?")
             {
-                return new CommandLineParseResult(null, null, ShowHelp: true);
+                return new CommandLineParseResult(null, null, null, ShowHelp: true);
             }
 
-            if (argument == "--show-transcript")
+            if (argument is "--show-transcript" or "--require-cached-model" or "--stable")
             {
                 if (!seenOptions.Add(argument))
                 {
                     return Error($"La opción {argument} no se puede repetir.");
                 }
 
-                showTranscript = true;
+                switch (argument)
+                {
+                    case "--show-transcript":
+                        showTranscript = true;
+                        break;
+                    case "--require-cached-model":
+                        requireCachedModel = true;
+                        break;
+                    default:
+                        stable = true;
+                        break;
+                }
+
                 continue;
             }
 
             if (argument is not (
                 "--audio" or
+                "--corpus-manifest" or
+                "--output-json" or
                 "--model-dir" or
                 "--model" or
                 "--language" or
@@ -117,6 +166,12 @@ internal static class CommandLineParser
                 case "--audio":
                     audioPath = value;
                     break;
+                case "--corpus-manifest":
+                    corpusManifestPath = value;
+                    break;
+                case "--output-json":
+                    outputJsonPath = value;
+                    break;
                 case "--model-dir":
                     modelDirectory = value;
                     break;
@@ -132,9 +187,11 @@ internal static class CommandLineParser
                         return Error("--model debe ser 'base' o 'small'.");
                     }
 
+                    modelWasSpecified = true;
                     break;
                 case "--language":
                     language = value.Trim().ToLowerInvariant();
+                    languageWasSpecified = true;
                     break;
                 case "--threads":
                     if (!int.TryParse(
@@ -148,6 +205,7 @@ internal static class CommandLineParser
                     }
 
                     threadCount = parsedThreadCount;
+                    threadCountWasSpecified = true;
                     break;
                 case "--reference":
                     referenceText = value;
@@ -158,9 +216,14 @@ internal static class CommandLineParser
             }
         }
 
-        if (audioPath is null)
+        if (audioPath is not null && corpusManifestPath is not null)
         {
-            return Error("Falta la opción obligatoria --audio.");
+            return Error("--audio y --corpus-manifest no se pueden usar a la vez.");
+        }
+
+        if (audioPath is null && corpusManifestPath is null)
+        {
+            return Error("Falta --audio o --corpus-manifest.");
         }
 
         if (referenceText is not null && referenceFilePath is not null)
@@ -181,8 +244,50 @@ internal static class CommandLineParser
         model ??= BenchmarkModel.Base;
         threadCount ??= Math.Clamp(Environment.ProcessorCount / 2, 1, 8);
 
+        if (corpusManifestPath is not null)
+        {
+            if (showTranscript || referenceText is not null || referenceFilePath is not null)
+            {
+                return Error("Las opciones de referencia y --show-transcript sólo se permiten con --audio.");
+            }
+
+            if (outputJsonPath is null)
+            {
+                return Error("Falta --output-json para el benchmark de corpus.");
+            }
+
+            if (!modelWasSpecified || !languageWasSpecified || !threadCountWasSpecified)
+            {
+                return Error("El benchmark de corpus requiere --model, --language y --threads explícitos.");
+            }
+
+            if (stable && !string.Equals(language, "es", StringComparison.Ordinal))
+            {
+                return Error("--stable requiere --language es.");
+            }
+
+            return new CommandLineParseResult(
+                null,
+                new CorpusBenchmarkOptions(
+                    corpusManifestPath,
+                    outputJsonPath,
+                    modelDirectory,
+                    model.Value,
+                    language,
+                    threadCount.Value,
+                    RequireCachedModel: requireCachedModel || stable,
+                    Stable: stable),
+                null,
+                ShowHelp: false);
+        }
+
+        if (outputJsonPath is not null || requireCachedModel || stable)
+        {
+            return Error("--output-json, --require-cached-model y --stable sólo se permiten con --corpus-manifest.");
+        }
+
         var options = new BenchmarkOptions(
-            audioPath,
+            audioPath!,
             modelDirectory,
             model.Value,
             language,
@@ -190,7 +295,7 @@ internal static class CommandLineParser
             referenceText,
             referenceFilePath,
             showTranscript);
-        return new CommandLineParseResult(options, null, ShowHelp: false);
+        return new CommandLineParseResult(options, null, null, ShowHelp: false);
     }
 
     private static bool IsValidLanguage(string language) =>
@@ -198,5 +303,5 @@ internal static class CommandLineParser
         && language.All(static character => character is >= 'a' and <= 'z' or '-');
 
     private static CommandLineParseResult Error(string message) =>
-        new(null, message, ShowHelp: false);
+        new(null, null, message, ShowHelp: false);
 }

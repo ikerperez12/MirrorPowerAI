@@ -91,14 +91,24 @@ No conserves audio, transcripciones ni respuestas como evidencia. Registra sólo
 
 ## Benchmark autorizado
 
-- Identificador y licencia/permiso del corpus español:
+- Identificador del corpus español (no sensible):
+- Revisión del corpus:
+- Licencia/permiso del corpus:
+- Origen HTTPS del corpus (sin token, consulta ni fragmento):
+- SHA-256 del manifiesto JSON v1:
 - Commit Git:
 - CPU y número de hilos:
-- Comando exacto sin rutas privadas:
+- Dependencias restauradas/compiladas antes de aislar la medición (sí/no):
+- Política de red aplicada durante la medición (desconectada, firewall u otra):
+- Modo estable con modelo cacheado verificado (sí/no):
+- Comando exacto sin rutas privadas (usar marcadores `<manifiesto>` y `<resultado>`):
+- Resultado JSON agregado seguro conservado localmente (sí/no):
 - Modelo `base`: WER / RTF:
 - ¿Cumple WER <= 20 % y RTF <= 0,25?:
 - Si no cumple precisión, modelo `small`: WER / RTF:
 - ¿Cumple RTF <= 0,5?:
+
+No copies rutas locales, IDs de elementos, WAV, referencias, transcripciones, hashes por elemento ni texto de `--show-transcript`. La evidencia válida es el resumen/JSON agregado de `Windows\benchmark-corpus.ps1`; ese wrapper exige español, hilos/modelo explícitos, no ejecuta restore ni descarga modelo, y requiere activos preparados previamente.
 
 ## Resultado de la ejecución
 

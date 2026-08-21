@@ -48,6 +48,24 @@ public sealed class NormalizedWaveFileTests
         Assert.Contains("cinco minutos", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Open_HandleValidationRunsBeforeRiffParsing()
+    {
+        using var file = new TemporaryFile([0x00]);
+        var validationWasRun = false;
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            NormalizedWaveFile.Open(file.Path, stream =>
+            {
+                validationWasRun = true;
+                Assert.Equal(0, stream.Position);
+                throw new InvalidOperationException("handle validation rejected the file");
+            }));
+
+        Assert.True(validationWasRun);
+        Assert.Equal("handle validation rejected the file", exception.Message);
+    }
+
     private static byte[] CreateWave(int sampleRate, int dataByteCount)
     {
         const int headerLength = 44;

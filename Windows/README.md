@@ -63,6 +63,7 @@ Comandos parciales:
 .\Windows\verify-shell.ps1
 .\Windows\verify-ui.ps1
 .\Windows\verify-wasapi.ps1
+.\Windows\benchmark-corpus.ps1 -?
 ```
 
 `verify-shell.ps1` comprueba de forma aislada la bandeja, el mutex de instancia única y el registro/liberación de `Alt+Shift+L` usando recursos Windows reales. No crea configuración ni usa DPAPI; tampoco inicia audio, carga modelos ni realiza peticiones de red. Requiere una sesión local interactiva y una aplicación normal cerrada; no sustituye comprobar visualmente el icono ni pulsar físicamente el atajo durante la QA manual.
@@ -111,7 +112,9 @@ Consulta [PRIVACY.md](docs/PRIVACY.md) para el flujo de datos completo.
 
 ## Benchmark de Whisper local
 
-La utilidad `MirrorPowerAI.Benchmark` mide WER y RTF con WAV PCM mono de 16 kHz y 16 bits, y utiliza el modelo Whisper base verificado. Úsala sólo con audio sintético, público o autorizado: la CLI imprime la transcripción completa. Una ejecución local no reemplaza el corpus español versionado ni la matriz de QA manual. Consulta [BENCHMARKING.md](docs/BENCHMARKING.md) para el comando, límites y criterios de interpretación.
+La utilidad individual `MirrorPowerAI.Benchmark` mide WER y RTF con WAV PCM mono de 16 kHz y 16 bits. Su salida normal oculta la ruta y la transcripción; revelar esta última requiere `--show-transcript` o `-ShowTranscript` explícito y no sirve como evidencia estable.
+
+La evidencia de rendimiento estable se obtiene exclusivamente con `Windows\benchmark-corpus.ps1` y un manifiesto local v1 no versionado. El wrapper exige español, modelo `base` o `small` fijado, hilos explícitos y un modelo local cuyo tamaño/SHA-256 se hayan verificado; no ejecuta restore ni descarga el modelo, y falla cerrada si los activos ya preparados faltan. Sólo emite un JSON agregado tras completar todo el corpus, sin rutas, IDs de elementos, referencias, transcripciones ni hashes individuales. Una ejecución de corpus no sustituye la matriz manual de audio, captura, DPI, accesibilidad y red. Consulta [BENCHMARKING.md](docs/BENCHMARKING.md) para preparar dependencias fuera de la medición, el formato, comando, límites y criterios de interpretación.
 
 ## Documentación
 

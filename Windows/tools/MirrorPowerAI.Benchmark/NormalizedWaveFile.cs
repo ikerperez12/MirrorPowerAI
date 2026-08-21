@@ -21,7 +21,18 @@ internal sealed class NormalizedWaveFile : IDisposable
 
     public TimeSpan Duration { get; }
 
-    public static NormalizedWaveFile Open(string path)
+    public static NormalizedWaveFile Open(string path) => Open(path, validateOpenedStream: null);
+
+    /// <summary>
+    /// Opens a WAV and gives a caller a chance to validate the final opened
+    /// handle before any RIFF metadata is read from it.
+    /// </summary>
+    /// <param name="path">The candidate WAV path.</param>
+    /// <param name="validateOpenedStream">Optional validation applied to the opened handle before parsing.</param>
+    /// <returns>A validated normalized WAV stream.</returns>
+    internal static NormalizedWaveFile Open(
+        string path,
+        Action<FileStream>? validateOpenedStream)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
@@ -59,6 +70,7 @@ internal sealed class NormalizedWaveFile : IDisposable
 
         try
         {
+            validateOpenedStream?.Invoke(stream);
             var duration = ValidateAndGetDuration(stream);
             stream.Position = 0;
             return new NormalizedWaveFile(stream, duration);

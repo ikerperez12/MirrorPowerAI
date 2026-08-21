@@ -1,60 +1,91 @@
 # Benchmark de Whisper local
 
-`MirrorPowerAI.Benchmark` mide la transcripción local con modelos Whisper fijados por origen, revisión, tamaño y SHA-256. Usa `base` por defecto y permite evaluar `small` sólo como alternativa de benchmark si `base` no alcanza el objetivo de precisión. La aplicación sigue usando exclusivamente `base` hasta que el corpus autorizado demuestre que conviene cambiarlo. La utilidad valida el WAV de entrada, prepara el modelo elegido cuya integridad se comprueba y muestra el tiempo de Whisper, el RTF y, si se proporciona una referencia, el WER normalizado.
+`MirrorPowerAI.Benchmark` tiene dos modos separados. El modo de un único WAV sirve para diagnóstico autorizado; el modo de corpus es la única evidencia aceptable para la puerta de rendimiento estable. Ambos usan exclusivamente los descriptores Whisper fijados en código (`base` o `small`), con tamaño y SHA-256 verificados.
 
-## Uso seguro
+No se ha descargado ni ejecutado un corpus o modelo como parte de esta implementación. La persona que hace QA debe elegir un corpus público o autorizado y conservarlo fuera del repositorio.
 
-Ejecuta la herramienta únicamente con un WAV sintético, público o para el que tengas autorización. Por defecto la CLI no muestra ni la ruta del WAV ni la transcripción: deja sólo un identificador fijo de entrada, los metadatos verificables del modelo y las métricas escalares necesarias para WER y RTF. Tampoco muestra la ruta local del modelo. Esto hace que la salida normal sea apta para conservar como evidencia sin copiar el contenido del audio, pero no autoriza a usar audio privado.
+## Privacidad y límites
 
-La transcripción completa sólo se muestra mediante una decisión consciente: `--show-transcript` en la CLI o `-ShowTranscript` en `Windows\benchmark.ps1`. Esa opción puede exponer datos sensibles en la consola, el historial o registros de CI; úsala únicamente con material autorizado y no la actives para la evidencia de QA estable. La inferencia de Whisper se ejecuta localmente, aunque la primera preparación del modelo puede requerir su descarga desde el origen fijado.
+Usa sólo audio sintético, público o con permiso explícito. No añadas WAV, referencias, manifiestos de corpus ni resultados con contenido a Git. Guarda el corpus en una carpeta local independiente o bajo `Windows\artifacts\`, que está ignorada.
 
-El archivo de audio debe ser un WAV RIFF PCM canónico, mono, a 16 kHz y 16 bits. La herramienta rechaza otros formatos, WAV mal formados y audio de más de cinco minutos. Si se usa un archivo de referencia, debe ser UTF-8, no superar 1 MiB y contener al menos una palabra después de normalizarse.
+El modo individual no muestra por defecto ni la ruta del WAV ni la transcripción. Sólo `--show-transcript` en la CLI o `-ShowTranscript` en `Windows\benchmark.ps1` revela el texto; esa acción es opt-in y no es válida para evidencia estable.
 
-## Ejecutar una medición local
+El modo corpus nunca incluye en su JSON o resumen de consola rutas locales, IDs de elementos, texto de audio, referencias, transcripciones ni hashes individuales de WAV/TXT. Sólo publica metadatos no sensibles del corpus, el SHA-256 del manifiesto completo y métricas agregadas.
 
-Desde la raíz del repositorio, con .NET SDK 10.0.400 disponible, sustituye las rutas de ejemplo por un WAV y una referencia autorizados:
+## Diagnóstico de un WAV
+
+El WAV debe ser RIFF PCM canónico, mono, 16 kHz y 16 bits, de como máximo cinco minutos. La referencia opcional debe ser UTF-8, no superar 1 MiB y contener una palabra tras normalizarse.
 
 ```powershell
-.\Windows\benchmark.ps1 --audio .\ruta\audio-publico.wav `
-  --reference-file .\ruta\audio-publico.txt `
+.\Windows\benchmark.ps1 --audio <wav-autorizado> `
+  --reference-file <referencia-autorizada.txt> `
   --language es
 ```
 
-Para inspeccionar las opciones sin ejecutar una transcripción:
+`--model <base|small>` limita el modelo a los dos artefactos fijados. `--threads <1-32>` configura la inferencia y `--model-dir <ruta>` cambia la caché. En este modo `base`, `auto` y la mitad de CPU (máximo ocho hilos) son valores predeterminados para conservar compatibilidad de diagnóstico.
 
-```powershell
-.\Windows\benchmark.ps1 --help
+## Corpus local v1
+
+La compuerta estable requiere un manifiesto JSON **local y no versionado** con este esquema cerrado. No se admiten propiedades adicionales ni duplicadas.
+
+```json
+{
+  "version": 1,
+  "id": "qa-spanish",
+  "revision": "2026.08",
+  "license": "CC0-1.0",
+  "source": "https://example.org/dataset",
+  "items": [
+    {
+      "id": "item-0001",
+      "audio": "audio/item-0001.wav",
+      "audioSha256": "<sha-256-minusculas-de-64-caracteres>",
+      "reference": "reference/item-0001.txt",
+      "referenceSha256": "<sha-256-minusculas-de-64-caracteres>"
+    }
+  ]
+}
 ```
 
-Opciones principales:
+`id`, `revision` y `license` son metadatos cortos no sensibles; `source` debe ser una URL HTTPS sin credenciales, consulta ni fragmento. Los IDs de elemento son sólo internos y no salen en la evidencia. Cada ruta `audio`/`reference` debe ser relativa al directorio del manifiesto, no puede contener `.` o `..`, una letra de unidad, UNC, enlace simbólico, junction ni otro reparse point. Se comprueba cada componente y, antes de interpretar el RIFF/WAV o la referencia, su ruta final Windows desde el handle debe seguir bajo ese directorio; esto es una defensa de integridad local, no una frontera frente a un administrador o kernel hostil. Los WAV deben acabar en `.wav`; las referencias en `.txt`. No se permite repetir un ID ni una ruta normalizada; la curación del corpus debe además excluir muestras duplicadas por contenido o hard link.
 
-- `--audio <ruta>` es obligatorio.
-- `--reference <texto>` o `--reference-file <ruta>` permiten calcular WER; son excluyentes.
-- `--language <código|auto>` usa `auto` por defecto.
-- `--model <base|small>` selecciona únicamente uno de los dos descriptores verificables; el predeterminado es `base`. No acepta rutas, URL ni identificadores de modelo libres.
-- `--threads <1-32>` fija los hilos de inferencia; si se omite, usa la mitad de los procesadores lógicos, con un máximo de 8.
-- `--model-dir <ruta>` cambia el directorio del modelo; el predeterminado es `%LOCALAPPDATA%\MirrorPowerAI\models`.
-- `--show-transcript` muestra el texto completo sólo para depuración autorizada. El valor predeterminado lo oculta. El envoltorio PowerShell admite también `-ShowTranscript`.
+El manifiesto queda limitado a 1 MiB y 10 000 elementos; cada referencia a 1 MiB. Antes de resolver el modelo o inferir, el programa abre y valida todo el corpus. Justo antes de cada inferencia vuelve a abrir el WAV y la referencia, verifica sus SHA-256 desde el mismo handle y vuelve a validar el WAV. Por tanto, una referencia ausente, demasiado grande, modificada, mal codificada o un hash incorrecto bloquea toda la ejecución sin generar un resultado parcial.
 
-La herramienta prepara el descriptor fijo correspondiente y sólo activa un archivo cuyo tamaño y SHA-256 coinciden con él. El resultado conserva el alias, archivo y SHA-256 para hacer auditable la evidencia. La preparación o descarga del modelo se informa por separado y no forma parte del RTF.
+## Ejecutar la puerta estable
 
-## Interpretar el resultado
+El envoltorio `Windows\benchmark-corpus.ps1` es intencionadamente estable: exige `-Language es`, añade `--stable` y exige un modelo local verificado. No invoca `dotnet restore`, descarga de modelo ni un cliente HTTP propio: compila sólo con `--no-restore`, ejecuta con `--no-build --no-restore` y desactiva el aviso de cargas de trabajo del SDK. Si faltan los activos ya restaurados o el modelo `ggml-base.bin`/`ggml-small.bin` no pasa tamaño/SHA-256, falla cerrada.
 
-- **Whisper (carga + inferencia)** incluye la carga local y la inferencia del modelo.
-- **RTF** es `tiempo de Whisper / duración del audio`; por ejemplo, `0,25x` implica que esa fase tarda una cuarta parte de la duración del audio. No incluye la preparación ni la verificación del modelo.
-- **WER normalizado** es `ediciones / palabras de referencia`. Para la comparación se ignoran mayúsculas, acentos y puntuación. Sin referencia no se muestra WER.
-
-Para una comparación repetible, registra el comando, la versión del código, el modelo verificado, idioma, número de hilos, duración del audio, WER y RTF. La referencia de rendimiento actual se evalúa con Whisper base en un Ryzen 7 7735HS: WER normalizado menor o igual a 20 % y RTF menor o igual a 0,25. Si `base` no cumple precisión, evalúa el descriptor fijo `small` con un comando explícito como el siguiente y exige RTF menor o igual a 0,5:
+Prepara el checkout **antes** de entrar en la sesión de medición, por ejemplo con `./Windows/build.ps1 -SkipPublish`; ese paso de preparación usa restore bloqueado y puede necesitar una caché NuGet o conectividad. No forma parte de la medición estable. Después puedes desconectar la red o aplicar la política de red de QA y ejecutar únicamente el wrapper de corpus.
 
 ```powershell
-.\Windows\benchmark.ps1 --audio .\ruta\audio-publico.wav `
-  --reference-file .\ruta\audio-publico.txt `
-  --language es `
-  --model small
+.\Windows\benchmark-corpus.ps1 `
+  -Manifest <manifiesto-local-no-versionado.json> `
+  -OutputJson <resultado-agregado-seguro.json> `
+  -Model base `
+  -Language es `
+  -Threads 8
 ```
 
-Los dos descriptores están cerrados en código: no se acepta un modelo de procedencia no verificada.
+Para evaluar `small` después de que `base` falle el objetivo de precisión, repite el mismo corpus con `-Model small`. No cambies modelo, idioma, número de hilos, manifiesto ni caché durante una comparación.
 
-## Alcance de la medición
+El wrapper no reproduce su línea de comandos, las rutas de manifiesto ni la ruta de salida cuando hay un fallo. En éxito sólo confirma la terminación; el JSON agregado es la evidencia durable. El resultado se genera en un temporal del mismo directorio y sólo reemplaza el JSON de destino después de que **todos** los elementos hayan terminado. Si falla preflight, modelo, hash, WAV, referencia, cancelación o inferencia, no hay resumen de éxito ni JSON parcial. El directorio de salida debe ser local y no estar controlado por otro proceso: la comprobación de reparse points no convierte un reemplazo concurrente de directorio en una frontera de seguridad.
 
-Una prueba local o sintética comprueba que la ruta de benchmark funciona, pero no sustituye al corpus español versionado y sin datos privados requerido por la matriz de QA. Tampoco sustituye las comprobaciones manuales de audio, consentimiento, red, accesibilidad, captura y pantallas. Completa y conserva la evidencia de [QA_CHECKLIST.md](QA_CHECKLIST.md) antes de considerar una etiqueta estable.
+## Evidencia segura y fórmulas
+
+El JSON determinista v1 y el resumen contienen:
+
+- `id`, `revision`, `license`, `source` y `manifestSha256` del corpus;
+- modelo fijado, idioma, hilos y si el modo es estable;
+- número de elementos, duración total, tiempo de verificación de modelo y tiempo total de Whisper;
+- ediciones, palabras de referencia, WER y RTF agregados.
+
+No incorpora fecha, rutas, IDs de elementos, audio, referencia, transcripción ni hashes por elemento. El SHA-256 del manifiesto se calcula sobre la misma lectura de bytes que se decodifica y analiza; identifica exactamente la estructura evaluada.
+
+Las fórmulas no promedian resultados por elemento:
+
+- **WER** = `suma de ediciones / suma de palabras de referencia`.
+- **RTF** = `suma de tiempo de Whisper / suma de duración de audio`.
+
+La preparación y verificación del modelo se informa por separado y no entra en RTF. `base` debe alcanzar WER normalizado menor o igual que 20 % y RTF menor o igual que 0,25 en el Ryzen 7 7735HS de referencia. Si falla precisión, `small` debe cumplir RTF menor o igual que 0,5.
+
+Conserva el JSON agregado y una copia local no sensible de [QA_EVIDENCE_TEMPLATE.md](QA_EVIDENCE_TEMPLATE.md). El corpus no sustituye las pruebas físicas de WASAPI, capturadores, DPI, accesibilidad, consentimiento ni red de [QA_CHECKLIST.md](QA_CHECKLIST.md).
