@@ -51,7 +51,10 @@ Comandos parciales:
 .\Windows\publish.ps1
 .\Windows\benchmark.ps1 --help
 .\Windows\verify-overlay.ps1
+.\Windows\verify-wasapi.ps1
 ```
+
+`verify-wasapi.ps1` es una prueba diagnóstica explícita del dispositivo de salida predeterminado: captura tres segundos sólo en memoria, valida que el resultado sea WAV PCM mono de 16 kHz/16 bits y lo borra antes de salir. No usa red, modelo, configuración, API key ni crea archivos de audio. Sin opciones acepta silencio si llegaron muestras; si se está reproduciendo audio autorizado y se quiere exigir señal real, ejecuta `./Windows/verify-wasapi.ps1 -RequireAudibleSignal`. No se invoca desde CI ni desde `-ReleaseGate`, para no iniciar una captura sin una intención explícita del operador.
 
 ## Primera ejecución
 

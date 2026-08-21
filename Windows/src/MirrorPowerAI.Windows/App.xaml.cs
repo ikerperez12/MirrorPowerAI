@@ -5,6 +5,7 @@ using System.Windows;
 using MirrorPowerAI.Core.Gemini;
 using MirrorPowerAI.Core.Models;
 using MirrorPowerAI.Windows.Audio;
+using MirrorPowerAI.Windows.Diagnostics;
 using MirrorPowerAI.Windows.Platform;
 using MirrorPowerAI.Windows.Resources;
 using MirrorPowerAI.Windows.Shell;
@@ -43,12 +44,31 @@ public partial class App : System.Windows.Application, IDisposable
     {
         base.OnStartup(e);
 
-        if (e.Args.Any(static argument => string.Equals(
-                argument,
-                "--verify-overlay",
-                StringComparison.Ordinal)))
+        var verifiesOverlay = HasArgument(e.Args, "--verify-overlay");
+        var verifiesWasapi = HasArgument(e.Args, "--verify-wasapi");
+        var requiresAudibleSignal = HasArgument(e.Args, "--require-audible-signal");
+
+        if (verifiesOverlay && (verifiesWasapi || requiresAudibleSignal))
+        {
+            Shutdown(1);
+            return;
+        }
+
+        if (verifiesOverlay)
         {
             VerifyOverlayProtectionAndExit();
+            return;
+        }
+
+        if (verifiesWasapi)
+        {
+            VerifyWasapiLoopbackAndExit(requiresAudibleSignal);
+            return;
+        }
+
+        if (requiresAudibleSignal)
+        {
+            Shutdown(1);
             return;
         }
 
@@ -125,6 +145,42 @@ public partial class App : System.Windows.Application, IDisposable
 
         Shutdown(exitCode);
     }
+
+    private void VerifyWasapiLoopbackAndExit(bool requireAudibleSignal)
+    {
+        if (!IsInteractiveLocalDiagnosticSession())
+        {
+            Shutdown(1);
+            return;
+        }
+
+        var exitCode = 1;
+        try
+        {
+            var result = new WasapiLoopbackDiagnostic()
+                .VerifyAsync(
+                    new WasapiLoopbackAudioCaptureService(),
+                    WasapiLoopbackDiagnostic.DefaultCaptureDuration,
+                    requireAudibleSignal)
+                .GetAwaiter()
+                .GetResult();
+            exitCode = result.IsSuccessful ? 0 : 2;
+        }
+        catch (Exception)
+        {
+            // This diagnostic deliberately returns only an exit code and never exposes endpoint or audio data.
+        }
+
+        Shutdown(exitCode);
+    }
+
+    private static bool HasArgument(IEnumerable<string> arguments, string expectedArgument) =>
+        arguments.Any(argument => string.Equals(argument, expectedArgument, StringComparison.Ordinal));
+
+    private static bool IsInteractiveLocalDiagnosticSession() =>
+        Environment.UserInteractive
+        && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"))
+        && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CI"));
 
     /// <summary>
     /// Creates the long-lived Gemini and Whisper dependencies plus the per-session Core adapter.

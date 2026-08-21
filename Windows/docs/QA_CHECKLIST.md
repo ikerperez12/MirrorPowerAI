@@ -24,6 +24,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 
 ## Audio
 
+- [ ] Preflight de WASAPI: ejecutar `./Windows/verify-wasapi.ps1` en una sesión local e interactiva; valida el ciclo nativo y la normalización sólo en memoria, pero no sustituye las pruebas reales de esta sección. Para verificar señal, reproducir audio autorizado y usar `-RequireAudibleSignal`.
 - [ ] Altavoces integrados.
 - [ ] Auriculares.
 - [ ] Cambio de dispositivo entre sesiones.
