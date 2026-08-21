@@ -5,9 +5,7 @@ using MirrorPowerAI.Core.Models;
 namespace MirrorPowerAI.Benchmark;
 
 internal sealed record BenchmarkResult(
-    string AudioPath,
     TimeSpan AudioDuration,
-    string ModelPath,
     BenchmarkModel Model,
     WhisperModelDescriptor ModelDescriptor,
     TimeSpan ModelPreparationElapsed,
@@ -34,9 +32,7 @@ internal static class BenchmarkCommand
         using var wave = NormalizedWaveFile.Open(options.AudioPath);
         var reference = await ResolveReferenceAsync(options, cancellationToken).ConfigureAwait(false);
 
-        output.WriteLine("MirrorPowerAI Whisper benchmark");
-        output.WriteLine($"Audio: {wave.Path}");
-        output.WriteLine($"Preparando y verificando el modelo fijado ({ToOptionValue(options.Model)})...");
+        WriteRunHeader(output, options.Model);
         await output.FlushAsync(cancellationToken).ConfigureAwait(false);
 
         var descriptor = SelectDescriptor(options.Model);
@@ -67,9 +63,7 @@ internal static class BenchmarkCommand
             : MirrorPowerAI.Benchmark.WordErrorRate.Calculate(reference, whisperResult.Transcript);
 
         return new BenchmarkResult(
-            wave.Path,
             wave.Duration,
-            modelPath,
             options.Model,
             descriptor,
             modelStopwatch.Elapsed,
@@ -79,6 +73,15 @@ internal static class BenchmarkCommand
             whisperResult.Elapsed,
             realTimeFactor,
             wordErrorRate);
+    }
+
+    internal static void WriteRunHeader(TextWriter output, BenchmarkModel model)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        output.WriteLine("MirrorPowerAI Whisper benchmark");
+        output.WriteLine("Audio: <entrada WAV validada>");
+        output.WriteLine($"Preparando y verificando el modelo fijado ({ToOptionValue(model)})...");
     }
 
     internal static WhisperModelDescriptor SelectDescriptor(BenchmarkModel model) => model switch
@@ -95,7 +98,7 @@ internal static class BenchmarkCommand
         _ => throw new ArgumentOutOfRangeException(nameof(model)),
     };
 
-    private static async Task<string?> ResolveReferenceAsync(
+    internal static async Task<string?> ResolveReferenceAsync(
         BenchmarkOptions options,
         CancellationToken cancellationToken)
     {
@@ -109,19 +112,42 @@ internal static class BenchmarkCommand
             return null;
         }
 
-        var referencePath = Path.GetFullPath(options.ReferenceFilePath);
-        var referenceFile = new FileInfo(referencePath);
-        if (!referenceFile.Exists)
+        string referencePath;
+        try
         {
-            throw new FileNotFoundException("No existe el archivo de referencia.", referencePath);
+            referencePath = Path.GetFullPath(options.ReferenceFilePath);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+        {
+            throw new ArgumentException(
+                "La ruta del archivo de referencia no es válida.",
+                nameof(options),
+                exception);
         }
 
-        if (referenceFile.Length > MaximumReferenceFileBytes)
+        try
         {
-            throw new InvalidDataException("El archivo de referencia supera el límite de 1 MiB.");
-        }
+            var referenceFile = new FileInfo(referencePath);
+            if (!referenceFile.Exists)
+            {
+                throw new FileNotFoundException("No existe el archivo de referencia.");
+            }
 
-        return await File.ReadAllTextAsync(referencePath, Encoding.UTF8, cancellationToken)
-            .ConfigureAwait(false);
+            if (referenceFile.Length > MaximumReferenceFileBytes)
+            {
+                throw new InvalidDataException("El archivo de referencia supera el límite de 1 MiB.");
+            }
+
+            return await File.ReadAllTextAsync(referencePath, Encoding.UTF8, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw new UnauthorizedAccessException("No se pudo acceder al archivo de referencia.", exception);
+        }
+        catch (IOException exception)
+        {
+            throw new IOException("No se pudo leer el archivo de referencia.", exception);
+        }
     }
 }

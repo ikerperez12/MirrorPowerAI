@@ -4,7 +4,9 @@
 
 ## Uso seguro
 
-Ejecuta la herramienta únicamente con un WAV sintético, público o para el que tengas autorización. La CLI imprime la transcripción completa en la salida estándar, además de la ruta del audio; no le pases audio privado, sensible o confidencial a una consola cuyo registro pueda conservarse o compartirse. La inferencia de Whisper se ejecuta localmente, aunque la primera preparación del modelo puede requerir su descarga desde el origen fijado.
+Ejecuta la herramienta únicamente con un WAV sintético, público o para el que tengas autorización. Por defecto la CLI no muestra ni la ruta del WAV ni la transcripción: deja sólo un identificador fijo de entrada, los metadatos verificables del modelo y las métricas escalares necesarias para WER y RTF. Tampoco muestra la ruta local del modelo. Esto hace que la salida normal sea apta para conservar como evidencia sin copiar el contenido del audio, pero no autoriza a usar audio privado.
+
+La transcripción completa sólo se muestra mediante una decisión consciente: `--show-transcript` en la CLI o `-ShowTranscript` en `Windows\benchmark.ps1`. Esa opción puede exponer datos sensibles en la consola, el historial o registros de CI; úsala únicamente con material autorizado y no la actives para la evidencia de QA estable. La inferencia de Whisper se ejecuta localmente, aunque la primera preparación del modelo puede requerir su descarga desde el origen fijado.
 
 El archivo de audio debe ser un WAV RIFF PCM canónico, mono, a 16 kHz y 16 bits. La herramienta rechaza otros formatos, WAV mal formados y audio de más de cinco minutos. Si se usa un archivo de referencia, debe ser UTF-8, no superar 1 MiB y contener al menos una palabra después de normalizarse.
 
@@ -32,6 +34,7 @@ Opciones principales:
 - `--model <base|small>` selecciona únicamente uno de los dos descriptores verificables; el predeterminado es `base`. No acepta rutas, URL ni identificadores de modelo libres.
 - `--threads <1-32>` fija los hilos de inferencia; si se omite, usa la mitad de los procesadores lógicos, con un máximo de 8.
 - `--model-dir <ruta>` cambia el directorio del modelo; el predeterminado es `%LOCALAPPDATA%\MirrorPowerAI\models`.
+- `--show-transcript` muestra el texto completo sólo para depuración autorizada. El valor predeterminado lo oculta. El envoltorio PowerShell admite también `-ShowTranscript`.
 
 La herramienta prepara el descriptor fijo correspondiente y sólo activa un archivo cuyo tamaño y SHA-256 coinciden con él. El resultado conserva el alias, archivo y SHA-256 para hacer auditable la evidencia. La preparación o descarga del modelo se informa por separado y no forma parte del RTF.
 

@@ -45,7 +45,7 @@ internal static class Program
                     Console.Out,
                     cancellationSource.Token)
                 .ConfigureAwait(false);
-            BenchmarkOutput.WriteResult(Console.Out, result);
+            BenchmarkOutput.WriteResult(Console.Out, result, parseResult.Options.ShowTranscript);
             return SuccessExitCode;
         }
         catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
@@ -53,40 +53,45 @@ internal static class Program
             Console.Error.WriteLine("Benchmark cancelado.");
             return CancelledExitCode;
         }
-        catch (WhisperModelException exception)
+        catch (WhisperModelException)
         {
-            Console.Error.WriteLine($"Error de modelo ({exception.Kind}): {exception.Message}");
+            Console.Error.WriteLine("Error de modelo: no se pudo preparar el modelo verificado.");
             return ModelErrorExitCode;
         }
-        catch (HttpRequestException exception)
+        catch (HttpRequestException)
         {
-            Console.Error.WriteLine($"Error al obtener el modelo: {exception.Message}");
+            Console.Error.WriteLine("Error de red: no se pudo obtener el modelo verificado.");
             return ModelErrorExitCode;
         }
-        catch (WhisperBenchmarkException exception)
+        catch (WhisperBenchmarkException)
         {
-            Console.Error.WriteLine($"Error de Whisper: {exception.Message}");
+            Console.Error.WriteLine("Error de Whisper: la inferencia local no se pudo completar.");
             return InferenceErrorExitCode;
         }
-        catch (UnauthorizedAccessException exception)
+        catch (UnauthorizedAccessException)
         {
-            Console.Error.WriteLine($"Acceso denegado: {exception.Message}");
+            Console.Error.WriteLine("Acceso denegado al procesar la entrada del benchmark.");
             return InputErrorExitCode;
         }
-        catch (InvalidDataException exception)
+        catch (InvalidDataException)
         {
-            Console.Error.WriteLine($"Entrada no válida: {exception.Message}");
+            Console.Error.WriteLine("Entrada no válida para el benchmark.");
             return InputErrorExitCode;
         }
-        catch (IOException exception)
+        catch (IOException)
         {
-            Console.Error.WriteLine($"Error de entrada/salida: {exception.Message}");
+            Console.Error.WriteLine("Error de entrada/salida al procesar el benchmark.");
             return InputErrorExitCode;
         }
-        catch (ArgumentException exception)
+        catch (ArgumentException)
         {
-            Console.Error.WriteLine($"Entrada no válida: {exception.Message}");
+            Console.Error.WriteLine("Argumentos de entrada no válidos para el benchmark.");
             return InputErrorExitCode;
+        }
+        catch (Exception)
+        {
+            Console.Error.WriteLine("Error inesperado durante el benchmark.");
+            return InferenceErrorExitCode;
         }
         finally
         {

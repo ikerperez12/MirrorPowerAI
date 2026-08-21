@@ -43,6 +43,39 @@ public sealed class CommandLineParserTests
         Assert.Null(result.Error);
         var options = Assert.IsType<BenchmarkOptions>(result.Options);
         Assert.Equal(BenchmarkModel.Base, options.Model);
+        Assert.False(options.ShowTranscript);
+    }
+
+    [Fact]
+    public void Parse_ShowTranscriptBeforeAudio_EnablesExplicitContentOutputWithoutConsumingAudioOption()
+    {
+        var result = CommandLineParser.Parse(["--show-transcript", "--audio", "sample.wav"]);
+
+        Assert.Null(result.Error);
+        var options = Assert.IsType<BenchmarkOptions>(result.Options);
+        Assert.True(options.ShowTranscript);
+        Assert.Equal("sample.wav", options.AudioPath);
+    }
+
+    [Fact]
+    public void Parse_ShowTranscriptRepeated_ReturnsClearError()
+    {
+        var result = CommandLineParser.Parse(
+            ["--audio", "sample.wav", "--show-transcript", "--show-transcript"]);
+
+        Assert.Null(result.Options);
+        Assert.Contains("no se puede repetir", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_UnknownOption_DoesNotEchoTheSuppliedValue()
+    {
+        const string suppliedValue = "contenido-privado-no-debe-aparecer";
+        var result = CommandLineParser.Parse(["--audio", "sample.wav", suppliedValue]);
+
+        Assert.Null(result.Options);
+        Assert.DoesNotContain(suppliedValue, result.Error, StringComparison.Ordinal);
+        Assert.Contains("Opción desconocida", result.Error, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -134,5 +167,7 @@ public sealed class CommandLineParserTests
         Assert.True(result.ShowHelp);
         Assert.Null(result.Error);
         Assert.Null(result.Options);
+        Assert.Contains("--show-transcript", CommandLineParser.HelpText, StringComparison.Ordinal);
+        Assert.Contains("privacidad", CommandLineParser.HelpText, StringComparison.Ordinal);
     }
 }

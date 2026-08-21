@@ -9,7 +9,8 @@ internal sealed record BenchmarkOptions(
     string Language,
     int ThreadCount,
     string? ReferenceText,
-    string? ReferenceFilePath);
+    string? ReferenceFilePath,
+    bool ShowTranscript);
 
 internal enum BenchmarkModel
 {
@@ -42,10 +43,12 @@ internal static class CommandLineParser
           --threads <1-32>           Hilos de inferencia; por defecto: mitad de CPU, máximo 8.
           --model-dir <ruta>         Directorio del modelo verificado. Por defecto:
                                      %LOCALAPPDATA%\MirrorPowerAI\models
+          --show-transcript          Muestra la transcripción completa. Puede contener datos sensibles.
           -h, --help, /?             Muestra esta ayuda.
 
         --reference y --reference-file son mutuamente excluyentes. La descarga o
-        verificación del modelo se mide por separado y no forma parte del RTF.
+        verificación del modelo se mide por separado y no forma parte del RTF. Por
+        privacidad, la salida normal no muestra la ruta del WAV ni la transcripción.
         """;
 
     public static CommandLineParseResult Parse(IReadOnlyList<string> arguments)
@@ -59,6 +62,7 @@ internal static class CommandLineParser
         string? referenceText = null;
         string? referenceFilePath = null;
         int? threadCount = null;
+        var showTranscript = false;
         var seenOptions = new HashSet<string>(StringComparer.Ordinal);
 
         for (var index = 0; index < arguments.Count; index++)
@@ -67,6 +71,17 @@ internal static class CommandLineParser
             if (argument is "-h" or "--help" or "/?")
             {
                 return new CommandLineParseResult(null, null, ShowHelp: true);
+            }
+
+            if (argument == "--show-transcript")
+            {
+                if (!seenOptions.Add(argument))
+                {
+                    return Error($"La opción {argument} no se puede repetir.");
+                }
+
+                showTranscript = true;
+                continue;
             }
 
             if (argument is not (
@@ -78,7 +93,7 @@ internal static class CommandLineParser
                 "--reference" or
                 "--reference-file"))
             {
-                return Error($"Opción desconocida: {argument}");
+                return Error("Opción desconocida. Usa --help para ver las opciones disponibles.");
             }
 
             if (!seenOptions.Add(argument))
@@ -173,7 +188,8 @@ internal static class CommandLineParser
             language,
             threadCount.Value,
             referenceText,
-            referenceFilePath);
+            referenceFilePath,
+            showTranscript);
         return new CommandLineParseResult(options, null, ShowHelp: false);
     }
 

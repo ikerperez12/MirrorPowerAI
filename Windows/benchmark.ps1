@@ -2,6 +2,7 @@
 param(
     [switch] $NoBuild,
     [switch] $NoRestore,
+    [switch] $ShowTranscript,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]] $BenchmarkArguments
 )
@@ -20,6 +21,12 @@ if (-not $NoBuild) {
     Invoke-MirrorPowerAIDotNet -Arguments @('build', $project, '-c', 'Release', '--no-restore')
 }
 
+$transcriptArgument = if ($ShowTranscript) {
+    @('--show-transcript')
+} else {
+    @()
+}
+
 $dotNetArguments = @(
     'run',
     '--project', $project,
@@ -27,6 +34,13 @@ $dotNetArguments = @(
     '--no-build',
     '--no-restore',
     '--'
-) + $BenchmarkArguments
+) + $transcriptArgument + $BenchmarkArguments
 
-Invoke-MirrorPowerAIDotNet -Arguments $dotNetArguments
+# Invoke the benchmark directly so a non-zero exit cannot be rethrown by the
+# common helper with the complete command line (which may contain local paths).
+$dotNetExecutable = Get-MirrorPowerAIDotNet
+& $dotNetExecutable @dotNetArguments
+$benchmarkExitCode = $LASTEXITCODE
+if ($benchmarkExitCode -ne 0) {
+    throw "El benchmark finalizó con código interno $benchmarkExitCode."
+}

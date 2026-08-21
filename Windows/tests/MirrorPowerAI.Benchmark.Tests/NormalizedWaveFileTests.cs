@@ -14,7 +14,6 @@ public sealed class NormalizedWaveFileTests
 
         Assert.Equal(TimeSpan.FromMilliseconds(10), wave.Duration);
         Assert.Equal(0, wave.Stream.Position);
-        Assert.Equal(System.IO.Path.GetFullPath(file.Path), wave.Path);
     }
 
     [Fact]

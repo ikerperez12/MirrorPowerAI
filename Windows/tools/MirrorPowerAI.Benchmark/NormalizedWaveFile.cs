@@ -11,14 +11,11 @@ internal sealed class NormalizedWaveFile : IDisposable
     private const int ExpectedBytesPerSecond = 32_000;
     private static readonly TimeSpan MaximumDuration = TimeSpan.FromMinutes(5);
 
-    private NormalizedWaveFile(string path, FileStream stream, TimeSpan duration)
+    private NormalizedWaveFile(FileStream stream, TimeSpan duration)
     {
-        Path = path;
         Stream = stream;
         Duration = duration;
     }
-
-    public string Path { get; }
 
     public FileStream Stream { get; }
 
@@ -28,22 +25,43 @@ internal sealed class NormalizedWaveFile : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var fullPath = System.IO.Path.GetFullPath(path);
-        var stream = new FileStream(
-            fullPath,
-            new FileStreamOptions
-            {
-                Access = FileAccess.Read,
-                Mode = FileMode.Open,
-                Share = FileShare.Read,
-                Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
-            });
+        string fullPath;
+        try
+        {
+            fullPath = System.IO.Path.GetFullPath(path);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+        {
+            throw new ArgumentException("La ruta del WAV de entrada no es válida.", nameof(path), exception);
+        }
+
+        FileStream stream;
+        try
+        {
+            stream = new FileStream(
+                fullPath,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Share = FileShare.Read,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                });
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw new UnauthorizedAccessException("No se pudo acceder al WAV de entrada.", exception);
+        }
+        catch (IOException exception)
+        {
+            throw new IOException("No se pudo abrir el WAV de entrada.", exception);
+        }
 
         try
         {
             var duration = ValidateAndGetDuration(stream);
             stream.Position = 0;
-            return new NormalizedWaveFile(fullPath, stream, duration);
+            return new NormalizedWaveFile(stream, duration);
         }
         catch
         {

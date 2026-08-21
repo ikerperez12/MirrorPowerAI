@@ -4,7 +4,10 @@ namespace MirrorPowerAI.Benchmark;
 
 internal static class BenchmarkOutput
 {
-    public static void WriteResult(TextWriter output, BenchmarkResult result)
+    public static void WriteResult(
+        TextWriter output,
+        BenchmarkResult result,
+        bool showTranscript = false)
     {
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(result);
@@ -14,7 +17,6 @@ internal static class BenchmarkOutput
         output.WriteLine($"  Modelo: {BenchmarkCommand.ToOptionValue(result.Model)} ({result.ModelDescriptor.FileName})");
         output.WriteLine($"  Origen fijado: {result.ModelDescriptor.DownloadUri.AbsoluteUri}");
         output.WriteLine($"  SHA-256 del modelo: {result.ModelDescriptor.Sha256}");
-        output.WriteLine($"  Ruta local del modelo: {result.ModelPath}");
         output.WriteLine($"  Idioma: {result.Language}");
         output.WriteLine($"  Hilos: {result.ThreadCount.ToString(CultureInfo.InvariantCulture)}");
         output.WriteLine($"  Duración de audio: {FormatSeconds(result.AudioDuration)} s");
@@ -34,7 +36,13 @@ internal static class BenchmarkOutput
         }
 
         output.WriteLine();
-        output.WriteLine("Transcripción");
+        if (!showTranscript)
+        {
+            output.WriteLine("Transcripción: <oculta por privacidad; usa --show-transcript para mostrarla>");
+            return;
+        }
+
+        output.WriteLine("Transcripción (solicitada explícitamente)");
         output.WriteLine(string.IsNullOrEmpty(result.Transcript) ? "  <vacía>" : result.Transcript);
     }
 
