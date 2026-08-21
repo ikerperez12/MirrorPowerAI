@@ -19,6 +19,18 @@ if ($ReleaseGate -and (
     throw 'ReleaseGate requiere una sesión local e interactiva de Windows; no se ejecuta en CI.'
 }
 
+if ($ReleaseGate) {
+    $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+    $worktreeStatus = @(& git -C $repositoryRoot status --porcelain=v1 --untracked-files=all)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'ReleaseGate no pudo comprobar el estado Git del candidato.'
+    }
+
+    if ($worktreeStatus.Count -ne 0) {
+        throw 'ReleaseGate requiere un árbol Git limpio para asociar el artefacto a un commit revisable.'
+    }
+}
+
 & (Join-Path $PSScriptRoot 'preflight.ps1') | Format-List
 
 $solution = Join-Path $PSScriptRoot 'MirrorPowerAI.slnx'
@@ -29,9 +41,15 @@ Invoke-MirrorPowerAIDotNet -Arguments @('build', $solution, '-c', 'Release', '--
 if (-not $SkipPublish) {
     $windowsProject = Join-Path $PSScriptRoot 'src\MirrorPowerAI.Windows\MirrorPowerAI.Windows.csproj'
     Invoke-MirrorPowerAIDotNet -Arguments @('restore', $windowsProject, '--runtime', 'win-x64', '--locked-mode')
-    & (Join-Path $PSScriptRoot 'publish.ps1') -NoRestore
+    $publishArguments = @('-NoRestore')
+    if ($ReleaseGate) {
+        $publishArguments += '-RequireCleanWorktree'
+    }
+
+    & (Join-Path $PSScriptRoot 'publish.ps1') @publishArguments
 
     if ($ReleaseGate) {
         & (Join-Path $PSScriptRoot 'verify-overlay.ps1')
+        & (Join-Path $PSScriptRoot 'verify-shell.ps1') -TimeoutSeconds 30
     }
 }

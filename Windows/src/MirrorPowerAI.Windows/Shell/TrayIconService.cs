@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Drawing;
 using Forms = System.Windows.Forms;
+using MirrorPowerAI.Windows.Diagnostics;
 using MirrorPowerAI.Windows.Resources;
 
 namespace MirrorPowerAI.Windows.Shell;
@@ -8,7 +9,7 @@ namespace MirrorPowerAI.Windows.Shell;
 /// <summary>
 /// Owns the notification-area icon and its keyboard-accessible native context menu.
 /// </summary>
-public sealed class TrayIconService : IDisposable
+public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource
 {
     private readonly LocalizationService _localization;
     private readonly Icon _icon;
@@ -22,6 +23,10 @@ public sealed class TrayIconService : IDisposable
     private ShellActivityState _activity;
     private bool _hasResponse;
     private bool _disposed;
+
+    bool IShellDiagnosticResource.IsDisposed => _disposed;
+
+    bool IShellDiagnosticTrayResource.IsVisible => !_disposed && _notifyIcon.Visible;
 
     /// <summary>Initializes and displays the notification-area icon.</summary>
     /// <param name="localization">Live localized string source.</param>

@@ -7,6 +7,7 @@ Haz una copia local de esta plantilla dentro de `Windows\artifacts\qa-evidence\`
 - Fecha y zona horaria:
 - Commit Git completo:
 - SHA-256 de `MirrorPowerAI.Windows.exe` publicado:
+- Copia de `build-provenance.json` o ruta local no sensible:
 - Windows: edición, compilación y arquitectura:
 - .NET SDK usado:
 - VC++ Redistributable x64:
@@ -19,6 +20,8 @@ Haz una copia local de esta plantilla dentro de `Windows\artifacts\qa-evidence\`
 | Comprobación | Comando | Resultado | Evidencia local no sensible |
 |---|---|---|---|
 | Build y WDA | `./Windows/build.ps1 -ReleaseGate` | Pendiente | |
+| Inventario del portable | `./Windows/verify-provenance.ps1` | Pendiente | |
+| Bandeja, mutex y hotkey | `./Windows/verify-shell.ps1` | Pendiente | |
 | WASAPI con muestras | `./Windows/verify-wasapi.ps1` | Pendiente | |
 | WASAPI con señal autorizada | `./Windows/verify-wasapi.ps1 -RequireAudibleSignal` | Pendiente / no aplicable | |
 | Suite xUnit y cobertura | `./Windows/test.ps1` | Pendiente | |

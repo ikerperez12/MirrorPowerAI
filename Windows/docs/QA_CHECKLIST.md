@@ -2,9 +2,15 @@
 
 Esta lista no se considera superada por el simple hecho de que compile. Marca cada caso sólo después de ejecutarlo en hardware real y conserva versión, fecha y evidencia. Usa una copia no versionada de [QA_EVIDENCE_TEMPLATE.md](QA_EVIDENCE_TEMPLATE.md) para registrar los resultados sin incluir datos sensibles.
 
+## Shell y controles globales
+
+- [ ] Preflight de shell: con la aplicación normal cerrada, ejecutar `./Windows/verify-shell.ps1` en una sesión local e interactiva. Comprueba mutex, bandeja y el registro/liberación de `Alt+Shift+L`, sin tocar configuración, audio, modelos ni red.
+- [ ] Abrir la aplicación normal y comprobar visualmente el icono de la bandeja y su menú mediante teclado.
+- [ ] Pulsar físicamente `Alt+Shift+L` para iniciar/detener una sesión y comprobar que al salir no queda icono ni proceso residual.
+
 ## Captura y exclusión del overlay
 
-- [ ] Preflight de API: ejecutar `./Windows/build.ps1 -ReleaseGate` en una sesión local e interactiva; publica y verifica `WDA_EXCLUDEFROMCAPTURE` en una ventana WPF real, pero no sustituye las capturas reales de esta sección.
+- [ ] Preflight de API: ejecutar `./Windows/build.ps1 -ReleaseGate` en una sesión local e interactiva; publica y verifica `WDA_EXCLUDEFROMCAPTURE` en una ventana WPF real, además de los recursos del shell, pero no sustituye las capturas reales de esta sección.
 - [ ] Snipping Tool: captura de pantalla completa.
 - [ ] Snipping Tool: captura de ventana.
 - [ ] OBS: Display Capture.

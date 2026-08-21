@@ -33,7 +33,7 @@ Desde la raíz del repositorio:
 .\Windows\build.ps1
 ```
 
-El script ejecuta preflight, restore bloqueado, build Release, xUnit, cobertura del núcleo y publicación autocontenida `win-x64`. La salida local queda en `Windows\artifacts\win-x64` y no se versiona; el equipo de destino no necesita instalar el runtime de .NET.
+El script ejecuta preflight, restore bloqueado, build Release, xUnit, cobertura del núcleo y publicación autocontenida `win-x64`. La salida local queda en `Windows\artifacts\win-x64` y no se versiona; el equipo de destino no necesita instalar el runtime de .NET. Cada publicación genera `build-provenance.json` con commit, estado limpio/sucio, SDK, RID, hash SHA-256 del ejecutable e inventario ordenado de todos los ficheros del portable con un hash agregado. El manifiesto no se incluye en su propio inventario.
 
 Para un candidato local que vaya a someterse a QA de distribución, usa la compuerta interactiva:
 
@@ -41,7 +41,15 @@ Para un candidato local que vaya a someterse a QA de distribución, usa la compu
 .\Windows\build.ps1 -ReleaseGate
 ```
 
-Además del flujo anterior, publica el ejecutable y verifica en una ventana WPF real que `WDA_EXCLUDEFROMCAPTURE` se puede aplicar y leer. Requiere una sesión local e interactiva de Windows con DWM; se rechaza deliberadamente en CI y no sustituye las pruebas con Snipping Tool, OBS, Teams o Meet. No crea una release de GitHub ni autoriza redistribución de binarios.
+Además del flujo anterior, exige un árbol Git limpio, publica el ejecutable con su manifiesto de procedencia, verifica en una ventana WPF real que `WDA_EXCLUDEFROMCAPTURE` se puede aplicar y leer, y comprueba bandeja, mutex y `Alt+Shift+L` con recursos Windows reales. Requiere una sesión local e interactiva de Windows con DWM y la aplicación normal cerrada; se rechaza deliberadamente en CI y no sustituye las pruebas con Snipping Tool, OBS, Teams o Meet. No crea una release de GitHub ni autoriza redistribución de binarios.
+
+Para comprobar después que una copia local del portable sigue siendo exactamente la que describe su manifiesto, sin usar red, audio, configuración ni secretos:
+
+```powershell
+.\Windows\verify-provenance.ps1
+```
+
+El verificador sólo acepta una carpeta bajo `Windows\artifacts`, rechaza enlaces simbólicos, junctions y otros reparse points, y falla si encuentra un fichero añadido, omitido o modificado.
 
 Comandos parciales:
 
@@ -49,10 +57,14 @@ Comandos parciales:
 .\Windows\preflight.ps1
 .\Windows\test.ps1
 .\Windows\publish.ps1
+.\Windows\verify-provenance.ps1
 .\Windows\benchmark.ps1 --help
 .\Windows\verify-overlay.ps1
+.\Windows\verify-shell.ps1
 .\Windows\verify-wasapi.ps1
 ```
+
+`verify-shell.ps1` comprueba de forma aislada la bandeja, el mutex de instancia única y el registro/liberación de `Alt+Shift+L` usando recursos Windows reales. No crea configuración ni usa DPAPI; tampoco inicia audio, carga modelos ni realiza peticiones de red. Requiere una sesión local interactiva y una aplicación normal cerrada; no sustituye comprobar visualmente el icono ni pulsar físicamente el atajo durante la QA manual.
 
 `verify-wasapi.ps1` es una prueba diagnóstica explícita del dispositivo de salida predeterminado: captura tres segundos sólo en memoria, valida que el resultado sea WAV PCM mono de 16 kHz/16 bits y lo borra antes de salir. No usa red, modelo, configuración, API key ni crea archivos de audio. Sin opciones acepta silencio si llegaron muestras; si se está reproduciendo audio autorizado y se quiere exigir señal real, ejecuta `./Windows/verify-wasapi.ps1 -RequireAudibleSignal`. No se invoca desde CI ni desde `-ReleaseGate`, para no iniciar una captura sin una intención explícita del operador.
 

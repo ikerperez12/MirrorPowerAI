@@ -1,19 +1,29 @@
 using System.ComponentModel;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using MirrorPowerAI.Windows.Diagnostics;
 
 namespace MirrorPowerAI.Windows.Platform;
 
 /// <summary>
 /// Owns a stable message-only window and registers Alt+Shift+L as a global hotkey.
 /// </summary>
-public sealed class GlobalHotKeyService : IDisposable
+public sealed class GlobalHotKeyService : IDisposable, IShellDiagnosticHotKeyResource
 {
     internal const int HotKeyIdentifier = 0x4D50;
     private readonly HwndSource _messageWindow;
     private readonly IGlobalHotKeyApi _hotKeyApi;
     private bool _registered;
     private bool _disposed;
+    private bool? _unregistrationSucceeded;
+
+    bool IShellDiagnosticResource.IsDisposed => _disposed;
+
+    bool IShellDiagnosticHotKeyResource.IsRegistered => Registration.IsRegistered;
+
+    nint IShellDiagnosticHotKeyResource.WindowHandle => _messageWindow.Handle;
+
+    bool? IShellDiagnosticHotKeyResource.UnregistrationSucceeded => _unregistrationSucceeded;
 
     /// <summary>
     /// Initializes the message-only HWND and attempts to register the hotkey.
@@ -97,7 +107,7 @@ public sealed class GlobalHotKeyService : IDisposable
 
         if (_registered)
         {
-            _ = Unregister(_messageWindow.Handle, _hotKeyApi);
+            _unregistrationSucceeded = Unregister(_messageWindow.Handle, _hotKeyApi);
             _registered = false;
         }
 

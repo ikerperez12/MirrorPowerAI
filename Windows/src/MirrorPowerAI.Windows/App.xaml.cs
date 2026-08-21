@@ -44,31 +44,28 @@ public partial class App : System.Windows.Application, IDisposable
     {
         base.OnStartup(e);
 
-        var verifiesOverlay = HasArgument(e.Args, "--verify-overlay");
-        var verifiesWasapi = HasArgument(e.Args, "--verify-wasapi");
-        var requiresAudibleSignal = HasArgument(e.Args, "--require-audible-signal");
-
-        if (verifiesOverlay && (verifiesWasapi || requiresAudibleSignal))
+        var diagnosticInvocation = DiagnosticCommandLine.Parse(e.Args);
+        if (diagnosticInvocation.Kind == DiagnosticKind.Invalid)
         {
             Shutdown(1);
             return;
         }
 
-        if (verifiesOverlay)
+        if (diagnosticInvocation.Kind == DiagnosticKind.Overlay)
         {
             VerifyOverlayProtectionAndExit();
             return;
         }
 
-        if (verifiesWasapi)
+        if (diagnosticInvocation.Kind == DiagnosticKind.Wasapi)
         {
-            VerifyWasapiLoopbackAndExit(requiresAudibleSignal);
+            VerifyWasapiLoopbackAndExit(diagnosticInvocation.RequireAudibleSignal);
             return;
         }
 
-        if (requiresAudibleSignal)
+        if (diagnosticInvocation.Kind == DiagnosticKind.Shell)
         {
-            Shutdown(1);
+            VerifyShellAndExit();
             return;
         }
 
@@ -174,8 +171,34 @@ public partial class App : System.Windows.Application, IDisposable
         Shutdown(exitCode);
     }
 
-    private static bool HasArgument(IEnumerable<string> arguments, string expectedArgument) =>
-        arguments.Any(argument => string.Equals(argument, expectedArgument, StringComparison.Ordinal));
+    private void VerifyShellAndExit()
+    {
+        if (!IsInteractiveLocalDiagnosticSession())
+        {
+            Shutdown(1);
+            return;
+        }
+
+        // NotifyIcon creates WinForms message resources. Run after WPF has entered its dispatcher loop so
+        // both creation and disposal receive their normal native message processing, while normal startup
+        // remains skipped entirely.
+        _ = Dispatcher.BeginInvoke(RunShellDiagnosticAndExit);
+    }
+
+    private void RunShellDiagnosticAndExit()
+    {
+        var exitCode = 1;
+        try
+        {
+            exitCode = new ShellDiagnostic().Verify().IsSuccessful ? 0 : 1;
+        }
+        catch (Exception)
+        {
+            // This diagnostic intentionally returns only a pass/fail exit code and never emits shell details.
+        }
+
+        Shutdown(exitCode);
+    }
 
     private static bool IsInteractiveLocalDiagnosticSession() =>
         Environment.UserInteractive

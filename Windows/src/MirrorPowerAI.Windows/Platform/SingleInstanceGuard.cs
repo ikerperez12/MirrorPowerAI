@@ -1,15 +1,18 @@
 using System.Security.Principal;
+using MirrorPowerAI.Windows.Diagnostics;
 
 namespace MirrorPowerAI.Windows.Platform;
 
 /// <summary>
 /// Owns a per-user named mutex that prevents concurrent application instances.
 /// </summary>
-public sealed class SingleInstanceGuard : IDisposable
+public sealed class SingleInstanceGuard : IDisposable, IShellDiagnosticResource
 {
     private readonly IInstanceMutex _mutex;
     private bool _ownsMutex;
     private bool _disposed;
+
+    bool IShellDiagnosticResource.IsDisposed => _disposed;
 
     private SingleInstanceGuard(IInstanceMutex mutex, bool ownsMutex)
     {

@@ -1,20 +1,25 @@
 [CmdletBinding()]
 param(
-    [switch] $NoRestore
+    [switch] $NoRestore,
+    [switch] $RequireCleanWorktree
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'scripts\common.ps1')
+. (Join-Path $PSScriptRoot 'scripts\provenance-common.ps1')
 
 $project = Join-Path $PSScriptRoot 'src\MirrorPowerAI.Windows\MirrorPowerAI.Windows.csproj'
-$artifactsRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'artifacts'))
-$publishDirectory = [System.IO.Path]::GetFullPath((Join-Path $artifactsRoot 'win-x64'))
-if (-not $publishDirectory.StartsWith($artifactsRoot, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'La carpeta de publicación resuelta está fuera de Windows\artifacts.'
-}
+$artifactsRoot = Resolve-MirrorPowerAIPath -Path (Join-Path $PSScriptRoot 'artifacts')
+$publishDirectory = Resolve-MirrorPowerAIPath -Path (Join-Path $artifactsRoot 'win-x64')
+$publishPath = Assert-MirrorPowerAIArtifactPublishPath `
+    -ArtifactsRoot $artifactsRoot `
+    -PublishDirectory $publishDirectory `
+    -CreateArtifactsRoot
+$publishDirectory = $publishPath.PublishDirectory
 
-if (Test-Path -LiteralPath $publishDirectory) {
+if ($null -ne (Get-MirrorPowerAIPathAttributes -Path $publishDirectory)) {
+    Assert-MirrorPowerAIPlainDirectoryTree -DirectoryPath $publishDirectory
     Remove-Item -LiteralPath $publishDirectory -Recurse -Force
 }
 
@@ -31,4 +36,8 @@ Invoke-MirrorPowerAIDotNet -Arguments @(
     '-o', $publishDirectory
 )
 
-Write-Information "Aplicación publicada en $publishDirectory" -InformationAction Continue
+& (Join-Path $PSScriptRoot 'write-provenance.ps1') `
+    -PublishDirectory $publishDirectory `
+    -RequireCleanWorktree:$RequireCleanWorktree
+
+Write-Information 'Aplicación publicada como portable win-x64.' -InformationAction Continue
