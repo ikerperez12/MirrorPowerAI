@@ -1,6 +1,6 @@
 # Matriz de QA manual
 
-Esta lista no se considera superada por el simple hecho de que compile. Marca cada caso sólo después de ejecutarlo en hardware real y conserva versión, fecha y evidencia.
+Esta lista no se considera superada por el simple hecho de que compile. Marca cada caso sólo después de ejecutarlo en hardware real y conserva versión, fecha y evidencia. Usa una copia no versionada de [QA_EVIDENCE_TEMPLATE.md](QA_EVIDENCE_TEMPLATE.md) para registrar los resultados sin incluir datos sensibles.
 
 ## Captura y exclusión del overlay
 

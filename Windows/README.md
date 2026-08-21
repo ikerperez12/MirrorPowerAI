@@ -104,6 +104,7 @@ La utilidad `MirrorPowerAI.Benchmark` mide WER y RTF con WAV PCM mono de 16 kHz 
 - [Seguridad](docs/SECURITY.md)
 - [Solución de problemas](docs/TROUBLESHOOTING.md)
 - [Matriz de QA](docs/QA_CHECKLIST.md)
+- [Plantilla de evidencia QA](docs/QA_EVIDENCE_TEMPLATE.md)
 - [Benchmark de Whisper local](docs/BENCHMARKING.md)
 - [Dependencias](docs/DEPENDENCIES.md)
 - [Integración upstream futura](docs/UPSTREAM_INTEGRATION.md)
