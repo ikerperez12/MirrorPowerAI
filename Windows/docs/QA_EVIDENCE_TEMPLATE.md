@@ -22,11 +22,12 @@ Haz una copia local de esta plantilla dentro de `Windows\artifacts\qa-evidence\`
 | Build y WDA | `./Windows/build.ps1 -ReleaseGate` | Pendiente | |
 | Inventario del portable | `./Windows/verify-provenance.ps1` | Pendiente | |
 | Bandeja, mutex y hotkey | `./Windows/verify-shell.ps1` | Pendiente | |
+| Ciclo WPF, UI Automation y limpieza | `./Windows/verify-ui.ps1` | Pendiente | |
 | WASAPI con muestras | `./Windows/verify-wasapi.ps1` | Pendiente | |
 | WASAPI con señal autorizada | `./Windows/verify-wasapi.ps1 -RequireAudibleSignal` | Pendiente / no aplicable | |
 | Suite xUnit y cobertura | `./Windows/test.ps1` | Pendiente | |
 
-La verificación WASAPI no guarda audio ni muestra contenido, pero se ejecuta sólo con la intención expresa del operador. Si se exige señal, reproduce únicamente audio autorizado y no protegido por DRM.
+La verificación WASAPI no guarda audio ni muestra contenido, pero se ejecuta sólo con la intención expresa del operador. Si se exige señal, reproduce únicamente audio autorizado y no protegido por DRM. `verify-ui.ps1` usa texto fijo no sensible y no carga ni guarda configuración ni usa DPAPI, audio, red, modelos o sesiones; su resultado automatizable no sustituye Narrator, alto contraste, DPI o la matriz de captura real.
 
 ## Captura y exclusión del overlay
 
@@ -82,6 +83,7 @@ No conserves audio, transcripciones ni respuestas como evidencia. Registra sólo
 | Teclado completo | | Pendiente | |
 | Foco visible y orden lógico | | Pendiente | |
 | Narrator: nombres, roles, valores y errores | | Pendiente | |
+| Narrator y feedback de bandeja genérico, sin contenido sensible | | Pendiente | |
 | Tema claro y oscuro | | Pendiente | |
 | Alto contraste | | Pendiente | |
 | Texto al 200 % | | Pendiente | |

@@ -27,6 +27,17 @@ public sealed class DiagnosticCommandLineTests
     }
 
     [Fact]
+    public void Parse_UiDiagnostic_SelectsOnlyTheUiPath()
+    {
+        // Act
+        var invocation = DiagnosticCommandLine.Parse(["--verify-ui"]);
+
+        // Assert
+        Assert.Equal(DiagnosticKind.Ui, invocation.Kind);
+        Assert.False(invocation.RequireAudibleSignal);
+    }
+
+    [Fact]
     public void Parse_WasapiAudibleRequirement_SelectsWasapiWithRequirement()
     {
         // Act
@@ -54,10 +65,15 @@ public sealed class DiagnosticCommandLineTests
         ["--require-audible-signal"],
         ["--verify-shell", "--verify-overlay"],
         ["--verify-shell", "--verify-wasapi"],
+        ["--verify-shell", "--verify-ui"],
+        ["--verify-overlay", "--verify-ui"],
+        ["--verify-wasapi", "--verify-ui"],
         ["--verify-shell", "--require-audible-signal"],
         ["--verify-overlay", "--require-audible-signal"],
+        ["--verify-ui", "--require-audible-signal"],
         ["--verify-wasapi", "--verify-wasapi"],
         ["--verify-shell", "--verify-shell"],
+        ["--verify-ui", "--verify-ui"],
         ["--verify-wasapi", "--require-audible-signal", "--require-audible-signal"],
     ];
 }

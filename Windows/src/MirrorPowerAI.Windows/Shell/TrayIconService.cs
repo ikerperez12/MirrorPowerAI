@@ -11,6 +11,7 @@ namespace MirrorPowerAI.Windows.Shell;
 /// </summary>
 public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource
 {
+    private const int NotifyIconTextLimit = 63;
     private readonly LocalizationService _localization;
     private readonly Icon _icon;
     private readonly Forms.NotifyIcon _notifyIcon;
@@ -20,6 +21,7 @@ public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource
     private readonly Forms.ToolStripMenuItem _showResponseItem;
     private readonly Forms.ToolStripMenuItem _settingsItem;
     private readonly Forms.ToolStripMenuItem _exitItem;
+    private readonly TrayStateAnnouncementPolicy _stateAnnouncementPolicy = new();
     private ShellActivityState _activity;
     private bool _hasResponse;
     private bool _disposed;
@@ -80,6 +82,12 @@ public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource
     /// <summary>Raised when the user explicitly exits the application.</summary>
     public event EventHandler? ExitRequested;
 
+    /// <summary>
+    /// Raised after a non-sensitive state announcement is sent to the Windows notification area.
+    /// The event is intended for local UI observation only; consumers must not log its message.
+    /// </summary>
+    public event EventHandler<TrayStateAnnouncementEventArgs>? StateAnnouncementRaised;
+
     /// <summary>Updates state-dependent labels and menu availability.</summary>
     /// <param name="activity">Current shell activity.</param>
     /// <param name="hasResponse">Whether a protected result is available.</param>
@@ -87,7 +95,44 @@ public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource
     {
         _activity = activity;
         _hasResponse = hasResponse;
-        UpdateLabels();
+        if (!_disposed)
+        {
+            UpdateLabels();
+        }
+    }
+
+    /// <summary>
+    /// Updates tray labels and announces a changed session activity once through the native
+    /// Windows notification area. The announcement contains only a localized generic state,
+    /// never a question, answer, project context, API key, or provider error detail.
+    /// </summary>
+    /// <param name="activity">Current shell activity.</param>
+    /// <param name="hasResponse">Whether a protected result is available.</param>
+    /// <returns><see langword="true"/> when a notification was emitted; otherwise <see langword="false"/> when the state is unchanged or the tray is disposed.</returns>
+    /// <remarks>
+    /// Call this from the UI thread in response to <c>ISessionCommands.StateChanged</c>.
+    /// The initial <see cref="ShellActivityState.Idle"/> state is deliberately silent so startup
+    /// does not generate a redundant notification.
+    /// </remarks>
+    public bool SetStateAndNotify(ShellActivityState activity, bool hasResponse)
+    {
+        SetState(activity, hasResponse);
+        return TryAnnounceStateChange(activity);
+    }
+
+    private bool TryAnnounceStateChange(ShellActivityState activity)
+    {
+        if (_disposed || !_stateAnnouncementPolicy.TryCreate(activity, out var announcement))
+        {
+            return false;
+        }
+
+        var message = _localization[announcement.ResourceKey];
+        ShowBalloon(message, announcement.Icon);
+        StateAnnouncementRaised?.Invoke(
+            this,
+            new TrayStateAnnouncementEventArgs(announcement.Activity, message));
+        return true;
     }
 
     /// <summary>Shows a non-sensitive informational notification.</summary>
@@ -100,23 +145,31 @@ public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource
 
     private void ShowBalloon(string message, Forms.ToolTipIcon icon)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
         _notifyIcon.BalloonTipIcon = icon;
-        _notifyIcon.BalloonTipTitle = _localization["AppName"];
+        _notifyIcon.BalloonTipTitle = TruncateTooltipText(_localization["AppName"]);
         _notifyIcon.BalloonTipText = message;
         _notifyIcon.ShowBalloonTip(5000);
     }
 
     private void UpdateLabels()
     {
-        _notifyIcon.Text = _localization["AppName"];
-        _statusItem.Text = _localization[_activity switch
+        var statusText = _localization[_activity switch
         {
             ShellActivityState.Capturing => "TrayStatusCapturing",
             ShellActivityState.Processing => "TrayStatusBusy",
             ShellActivityState.Error => "TrayStatusError",
             _ => "TrayStatusIdle",
         }];
+        _notifyIcon.Text = CreateSafeTooltip(_localization["AppName"], statusText);
+        _statusItem.Text = statusText;
+        _statusItem.AccessibleName = statusText;
+        _statusItem.AccessibleDescription = statusText;
         _toggleItem.Text = _localization[_activity switch
         {
             ShellActivityState.Capturing => "TrayToggleStop",
@@ -128,6 +181,43 @@ public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource
         _showResponseItem.Enabled = _hasResponse;
         _settingsItem.Text = _localization["TraySettings"];
         _exitItem.Text = _localization["TrayExit"];
+        SetAccessibleText(_toggleItem);
+        SetAccessibleText(_showResponseItem);
+        SetAccessibleText(_settingsItem);
+        SetAccessibleText(_exitItem);
+    }
+
+    /// <summary>
+    /// Creates a bounded notification-area tooltip from app-owned localized labels only.
+    /// Callers must never pass user content, protected settings, audio, or provider diagnostics.
+    /// </summary>
+    internal static string CreateSafeTooltip(string appName, string statusText)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(statusText);
+
+        var normalizedAppName = NormalizeTooltipText(appName);
+        var normalizedStatusText = NormalizeTooltipText(statusText);
+        var tooltip = $"{normalizedAppName}: {normalizedStatusText}";
+        return tooltip.Length <= NotifyIconTextLimit
+            ? tooltip
+            : TruncateTooltipText(normalizedAppName);
+    }
+
+    private static string NormalizeTooltipText(string text) => text
+        .Replace('\r', ' ')
+        .Replace('\n', ' ')
+        .Replace('\t', ' ')
+        .Trim();
+
+    private static string TruncateTooltipText(string text) => text.Length <= NotifyIconTextLimit
+        ? text
+        : text[..NotifyIconTextLimit];
+
+    private static void SetAccessibleText(Forms.ToolStripMenuItem item)
+    {
+        item.AccessibleName = item.Text;
+        item.AccessibleDescription = item.Text;
     }
 
     private void OnLocalizationChanged(object? sender, PropertyChangedEventArgs eventArgs) => UpdateLabels();
@@ -154,3 +244,70 @@ public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource
         GC.SuppressFinalize(this);
     }
 }
+
+/// <summary>
+/// Represents a generic, localized state change announced through the Windows notification area.
+/// Its message is intentionally free of user content and diagnostic details.
+/// </summary>
+/// <param name="activity">The announced shell activity.</param>
+/// <param name="message">Localized generic state text.</param>
+public sealed class TrayStateAnnouncementEventArgs(ShellActivityState activity, string message) : EventArgs
+{
+    /// <summary>Gets the announced shell activity.</summary>
+    public ShellActivityState Activity { get; } = activity;
+
+    /// <summary>Gets the generic localized announcement text.</summary>
+    public string Message { get; } = string.IsNullOrWhiteSpace(message)
+        ? throw new ArgumentException("A state announcement requires text.", nameof(message))
+        : message;
+}
+
+/// <summary>
+/// Tracks the last announced state so notification-area feedback remains useful rather than noisy.
+/// </summary>
+internal sealed class TrayStateAnnouncementPolicy
+{
+    private ShellActivityState _lastAnnouncedActivity = ShellActivityState.Idle;
+
+    /// <summary>Creates the next non-sensitive announcement if the activity changed.</summary>
+    internal bool TryCreate(ShellActivityState activity, out TrayStateAnnouncement announcement)
+    {
+        if (_lastAnnouncedActivity == activity)
+        {
+            announcement = default!;
+            return false;
+        }
+
+        announcement = activity switch
+        {
+            ShellActivityState.Capturing => new TrayStateAnnouncement(
+                activity,
+                "TrayAnnouncementCapturing",
+                Forms.ToolTipIcon.Info),
+            ShellActivityState.Processing => new TrayStateAnnouncement(
+                activity,
+                "TrayAnnouncementProcessing",
+                Forms.ToolTipIcon.Info),
+            ShellActivityState.Idle => new TrayStateAnnouncement(
+                activity,
+                "TrayAnnouncementIdle",
+                Forms.ToolTipIcon.Info),
+            ShellActivityState.Error => new TrayStateAnnouncement(
+                activity,
+                "TrayAnnouncementError",
+                Forms.ToolTipIcon.Error),
+            _ => throw new ArgumentOutOfRangeException(nameof(activity), activity, "Unknown shell activity."),
+        };
+        _lastAnnouncedActivity = activity;
+        return true;
+    }
+}
+
+/// <summary>Contains the resource mapping for a deduplicated state announcement.</summary>
+/// <param name="Activity">The changed shell activity.</param>
+/// <param name="ResourceKey">The localized generic announcement resource.</param>
+/// <param name="Icon">The native non-sensitive notification icon.</param>
+internal sealed record TrayStateAnnouncement(
+    ShellActivityState Activity,
+    string ResourceKey,
+    Forms.ToolTipIcon Icon);

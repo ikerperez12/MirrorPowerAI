@@ -41,7 +41,7 @@ Para un candidato local que vaya a someterse a QA de distribución, usa la compu
 .\Windows\build.ps1 -ReleaseGate
 ```
 
-Además del flujo anterior, exige un árbol Git limpio, publica el ejecutable con su manifiesto de procedencia, verifica en una ventana WPF real que `WDA_EXCLUDEFROMCAPTURE` se puede aplicar y leer, y comprueba bandeja, mutex y `Alt+Shift+L` con recursos Windows reales. Requiere una sesión local e interactiva de Windows con DWM y la aplicación normal cerrada; se rechaza deliberadamente en CI y no sustituye las pruebas con Snipping Tool, OBS, Teams o Meet. No crea una release de GitHub ni autoriza redistribución de binarios.
+Además del flujo anterior, exige un árbol Git limpio, publica el ejecutable con su manifiesto de procedencia, verifica en una ventana WPF real que `WDA_EXCLUDEFROMCAPTURE` se puede aplicar y leer, y comprueba bandeja, mutex y `Alt+Shift+L` con recursos Windows reales. También ejecuta un ciclo WPF real y acotado de la configuración y del overlay protegido, incluidos el renderizado, los controles UI Automation, el foco del resultado y el cierre/limpieza. Finalmente verifica el inventario del portable. Requiere una sesión local e interactiva de Windows con DWM y la aplicación normal cerrada; se rechaza deliberadamente en CI y no sustituye las pruebas con Snipping Tool, OBS, Teams o Meet, ni la revisión manual de Narrator, alto contraste o DPI. No crea una release de GitHub ni autoriza redistribución de binarios.
 
 Para comprobar después que una copia local del portable sigue siendo exactamente la que describe su manifiesto, sin usar red, audio, configuración ni secretos:
 
@@ -61,10 +61,13 @@ Comandos parciales:
 .\Windows\benchmark.ps1 --help
 .\Windows\verify-overlay.ps1
 .\Windows\verify-shell.ps1
+.\Windows\verify-ui.ps1
 .\Windows\verify-wasapi.ps1
 ```
 
 `verify-shell.ps1` comprueba de forma aislada la bandeja, el mutex de instancia única y el registro/liberación de `Alt+Shift+L` usando recursos Windows reales. No crea configuración ni usa DPAPI; tampoco inicia audio, carga modelos ni realiza peticiones de red. Requiere una sesión local interactiva y una aplicación normal cerrada; no sustituye comprobar visualmente el icono ni pulsar físicamente el atajo durante la QA manual.
+
+`verify-ui.ps1` ejecuta localmente un ciclo WPF real y acotado de la ventana de configuración y del overlay protegido con texto fijo no sensible. Comprueba que ambas ventanas se renderizan y exponen los controles críticos mediante UI Automation, que el foco llega al resultado del overlay y que los dos ciclos se cierran y limpian. Omite el inicio normal: no carga ni guarda configuración, no usa DPAPI, audio, red, modelos ni sesiones. Requiere una sesión local e interactiva y se rechaza en CI. Es una comprobación de contrato y renderizado; no sustituye la prueba manual de Narrator, alto contraste, DPI, capturas ni dispositivos reales.
 
 `verify-wasapi.ps1` es una prueba diagnóstica explícita del dispositivo de salida predeterminado: captura tres segundos sólo en memoria, valida que el resultado sea WAV PCM mono de 16 kHz/16 bits y lo borra antes de salir. No usa red, modelo, configuración, API key ni crea archivos de audio. Sin opciones acepta silencio si llegaron muestras; si se está reproduciendo audio autorizado y se quiere exigir señal real, ejecuta `./Windows/verify-wasapi.ps1 -RequireAudibleSignal`. No se invoca desde CI ni desde `-ReleaseGate`, para no iniciar una captura sin una intención explícita del operador.
 
@@ -104,6 +107,7 @@ Consulta [PRIVACY.md](docs/PRIVACY.md) para el flujo de datos completo.
 - `WDA_EXCLUDEFROMCAPTURE` protege frente a APIs públicas que respetan DWM; no protege frente a una cámara física, drivers o software que eluda ese mecanismo.
 - Windows 10, ARM64, MSIX, firma de código, autoactualización y publicación de releases quedan fuera de esta primera versión.
 - La etiqueta estable requiere completar la matriz manual de [QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
+- Los avisos de bandeja para cambios de estado son genéricos y localizados (`Capturando`, `Procesando`, `Error` o `Preparado`). El estado inicial `Preparado` no genera aviso; estos avisos nunca incluyen API key, contexto, audio, pregunta, respuesta ni detalle del proveedor.
 
 ## Benchmark de Whisper local
 

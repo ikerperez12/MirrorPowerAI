@@ -117,7 +117,7 @@
                            FontWeight="SemiBold"
                            TextWrapping="Wrap"
                            Visibility="Collapsed"
-                           Focusable="True"
+                           Focusable="False"
                            automation:AutomationProperties.LiveSetting="Assertive" />
             </StackPanel>
         </ScrollViewer>

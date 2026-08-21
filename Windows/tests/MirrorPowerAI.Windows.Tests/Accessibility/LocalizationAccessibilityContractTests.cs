@@ -1,15 +1,11 @@
 using System.ComponentModel;
 using System.Xml.Linq;
 using MirrorPowerAI.Windows.Resources;
+using MirrorPowerAI.Windows.Tests.Platform;
 
 namespace MirrorPowerAI.Windows.Tests.Accessibility;
 
-[CollectionDefinition(nameof(LocalizationAccessibilitySerialExecution), DisableParallelization = true)]
-public sealed class LocalizationAccessibilitySerialExecution
-{
-}
-
-[Collection(nameof(LocalizationAccessibilitySerialExecution))]
+[Collection(nameof(WpfSettingsWindowSerialTestSuite))]
 public sealed class LocalizationAccessibilityContractTests
 {
     private static readonly XNamespace XamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
@@ -47,6 +43,7 @@ public sealed class LocalizationAccessibilityContractTests
             Assert.Equal(
                 "No se pudo activar la compatibilidad de DPI por monitor. La interfaz podría no escalarse correctamente.",
                 localization["DpiAwarenessFailed"]);
+            Assert.Equal("MirrorPowerAI está capturando audio.", localization["TrayAnnouncementCapturing"]);
         }
         finally
         {
@@ -65,6 +62,21 @@ public sealed class LocalizationAccessibilityContractTests
             .Single(element =>
                 element.Name.LocalName == "CheckBox" &&
                 AttributeValue(element, XamlNamespace + "Name") == "CloudConsentBox");
+        var status = mainWindow
+            .Descendants()
+            .Single(element =>
+                element.Name.LocalName == "TextBlock" &&
+                AttributeValue(element, XamlNamespace + "Name") == "StatusText");
+        var question = overlayWindow
+            .Descendants()
+            .Single(element =>
+                element.Name.LocalName == "TextBox" &&
+                AttributeValue(element, XamlNamespace + "Name") == "QuestionTextBox");
+        var answer = overlayWindow
+            .Descendants()
+            .Single(element =>
+                element.Name.LocalName == "TextBox" &&
+                AttributeValue(element, XamlNamespace + "Name") == "AnswerTextBox");
 
         Assert.Equal(UiLanguageBinding, AttributeValue(mainWindow.Root!, "Language"));
         Assert.Equal(UiLanguageBinding, AttributeValue(overlayWindow.Root!, "Language"));
@@ -74,6 +86,16 @@ public sealed class LocalizationAccessibilityContractTests
         Assert.Equal(
             "{loc:Loc CloudConsentText}",
             AttributeValue(consent, AutomationNamespace + "AutomationProperties.HelpText"));
+        Assert.Equal("False", AttributeValue(status, "Focusable"));
+        Assert.Equal(
+            "Assertive",
+            AttributeValue(status, AutomationNamespace + "AutomationProperties.LiveSetting"));
+        Assert.Equal(
+            "Polite",
+            AttributeValue(question, AutomationNamespace + "AutomationProperties.LiveSetting"));
+        Assert.Equal(
+            "Polite",
+            AttributeValue(answer, AutomationNamespace + "AutomationProperties.LiveSetting"));
     }
 
     [Fact]

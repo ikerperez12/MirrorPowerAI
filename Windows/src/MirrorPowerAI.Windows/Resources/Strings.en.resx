@@ -26,6 +26,10 @@
   <data name="TrayStatusCapturing" xml:space="preserve"><value>Status: capturing audio</value></data>
   <data name="TrayStatusBusy" xml:space="preserve"><value>Status: processing</value></data>
   <data name="TrayStatusError" xml:space="preserve"><value>Status: error</value></data>
+  <data name="TrayAnnouncementCapturing" xml:space="preserve"><value>MirrorPowerAI is capturing audio.</value></data>
+  <data name="TrayAnnouncementProcessing" xml:space="preserve"><value>MirrorPowerAI is processing the request.</value></data>
+  <data name="TrayAnnouncementIdle" xml:space="preserve"><value>MirrorPowerAI is ready.</value></data>
+  <data name="TrayAnnouncementError" xml:space="preserve"><value>MirrorPowerAI encountered an error. Check the tray menu.</value></data>
   <data name="TrayReady" xml:space="preserve"><value>MirrorPowerAI is ready. Press Alt+Shift+L to start.</value></data>
   <data name="HotKeyUnavailable" xml:space="preserve"><value>Alt+Shift+L could not be registered. Use the tray menu or release that shortcut.</value></data>
   <data name="NoResponse" xml:space="preserve"><value>There is no response to show yet.</value></data>

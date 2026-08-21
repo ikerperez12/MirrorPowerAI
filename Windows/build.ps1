@@ -51,5 +51,7 @@ if (-not $SkipPublish) {
     if ($ReleaseGate) {
         & (Join-Path $PSScriptRoot 'verify-overlay.ps1')
         & (Join-Path $PSScriptRoot 'verify-shell.ps1') -TimeoutSeconds 30
+        & (Join-Path $PSScriptRoot 'verify-ui.ps1') -TimeoutSeconds 30
+        & (Join-Path $PSScriptRoot 'verify-provenance.ps1')
     }
 }

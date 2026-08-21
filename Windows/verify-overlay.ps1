@@ -21,6 +21,7 @@ if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
 $process = Start-Process -FilePath $executable -ArgumentList '--verify-overlay' -PassThru
 if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
     try {
+        # Only the exact diagnostic child is terminated; no broad process-name cleanup is used.
         $process.Kill()
         $null = $process.WaitForExit(5000)
     }

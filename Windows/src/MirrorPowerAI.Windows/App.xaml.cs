@@ -36,7 +36,7 @@ public partial class App : System.Windows.Application, IDisposable
     private readonly SemaphoreSlim _privacyTransitionGate = new(1, 1);
     private int _toggleInProgress;
     private int _privacyTransitionsPending;
-    private bool _resourcesDisposed;
+    private int _resourcesDisposed;
     private string? _lastDisplayedAnswer;
 
     /// <inheritdoc />
@@ -66,6 +66,12 @@ public partial class App : System.Windows.Application, IDisposable
         if (diagnosticInvocation.Kind == DiagnosticKind.Shell)
         {
             VerifyShellAndExit();
+            return;
+        }
+
+        if (diagnosticInvocation.Kind == DiagnosticKind.Ui)
+        {
+            VerifyUiAndExit();
             return;
         }
 
@@ -122,6 +128,12 @@ public partial class App : System.Windows.Application, IDisposable
 
     private void VerifyOverlayProtectionAndExit()
     {
+        if (!IsInteractiveLocalDiagnosticSession())
+        {
+            Shutdown(1);
+            return;
+        }
+
         var overlay = new OverlayWindow();
         var exitCode = 1;
 
@@ -185,6 +197,20 @@ public partial class App : System.Windows.Application, IDisposable
         _ = Dispatcher.BeginInvoke(RunShellDiagnosticAndExit);
     }
 
+    private void VerifyUiAndExit()
+    {
+        if (!IsInteractiveLocalDiagnosticSession())
+        {
+            Shutdown(1);
+            return;
+        }
+
+        // The diagnostic must enter the WPF dispatcher loop before showing either window. It never
+        // constructs normal-startup services, so no settings, DPAPI, audio, model, network, or session
+        // resource exists on this route.
+        _ = Dispatcher.BeginInvoke(new Action(() => _ = RunUiDiagnosticAndExitAsync()));
+    }
+
     private void RunShellDiagnosticAndExit()
     {
         var exitCode = 1;
@@ -195,6 +221,21 @@ public partial class App : System.Windows.Application, IDisposable
         catch (Exception)
         {
             // This diagnostic intentionally returns only a pass/fail exit code and never emits shell details.
+        }
+
+        Shutdown(exitCode);
+    }
+
+    private async Task RunUiDiagnosticAndExitAsync()
+    {
+        var exitCode = 1;
+        try
+        {
+            exitCode = (await UiDiagnostic.VerifyAsync()).ToProcessExitCode();
+        }
+        catch (Exception)
+        {
+            // This diagnostic intentionally returns only a pass/fail exit code and never emits UI data.
         }
 
         Shutdown(exitCode);
@@ -299,7 +340,7 @@ public partial class App : System.Windows.Application, IDisposable
 
     private void ApplySessionSnapshot(SessionSnapshot snapshot)
     {
-        _trayIcon?.SetState(snapshot.Activity, snapshot.HasResult);
+        _trayIcon?.SetStateAndNotify(snapshot.Activity, snapshot.HasResult);
         if (snapshot.Activity == ShellActivityState.Capturing)
         {
             _lastDisplayedAnswer = null;
@@ -410,7 +451,7 @@ public partial class App : System.Windows.Application, IDisposable
                     await _sessionCommands.ResetAsync(cancellationToken);
                 }
 
-                _trayIcon?.SetState(ShellActivityState.Idle, hasResponse: false);
+                _trayIcon?.SetStateAndNotify(ShellActivityState.Idle, hasResponse: false);
             });
         }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
@@ -484,53 +525,84 @@ public partial class App : System.Windows.Application, IDisposable
 
     private void DisposeResources()
     {
-        if (_resourcesDisposed)
+        if (Interlocked.Exchange(ref _resourcesDisposed, 1) != 0)
         {
             return;
         }
 
-        _resourcesDisposed = true;
-        _lifetimeCancellation.Cancel();
-        _overlayPresenter?.Close();
-
-        if (_settingsWindow is not null)
-        {
-            _settingsWindow.SettingsSaved -= OnSettingsSaved;
-            _settingsWindow.CloseForApplicationExit();
-        }
-
-        if (_sessionCommands is not null)
-        {
-            _sessionCommands.StateChanged -= OnSessionStateChanged;
-            if (_sessionCommands is IAsyncDisposable asyncDisposable)
+        BestEffortCleanup.Run(
+            () => _lifetimeCancellation.Cancel(),
+            () => _overlayPresenter?.Close(),
+            () =>
             {
-                asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            }
-        }
-
-        if (_hotKey is not null)
-        {
-            _hotKey.Pressed -= OnToggleRequested;
-            _hotKey.Dispose();
-        }
-
-        if (_trayIcon is not null)
-        {
-            _trayIcon.ToggleRequested -= OnToggleRequested;
-            _trayIcon.ShowResponseRequested -= OnShowResponseRequested;
-            _trayIcon.SettingsRequested -= OnSettingsRequested;
-            _trayIcon.ExitRequested -= OnExitRequested;
-            _trayIcon.Dispose();
-        }
-
-        _singleInstance?.Dispose();
-        _modelManager?.Dispose();
-        _modelHttpClient?.Dispose();
-        _geminiHttpClient?.Dispose();
-        _lifetimeCancellation.Dispose();
-        if (Volatile.Read(ref _privacyTransitionsPending) == 0)
-        {
-            _privacyTransitionGate.Dispose();
-        }
+                if (_settingsWindow is not null)
+                {
+                    _settingsWindow.SettingsSaved -= OnSettingsSaved;
+                }
+            },
+            () => _settingsWindow?.CloseForApplicationExit(),
+            () =>
+            {
+                if (_sessionCommands is not null)
+                {
+                    _sessionCommands.StateChanged -= OnSessionStateChanged;
+                }
+            },
+            () =>
+            {
+                if (_sessionCommands is IAsyncDisposable asyncDisposable)
+                {
+                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                }
+            },
+            () =>
+            {
+                if (_hotKey is not null)
+                {
+                    _hotKey.Pressed -= OnToggleRequested;
+                }
+            },
+            () => _hotKey?.Dispose(),
+            () =>
+            {
+                if (_trayIcon is not null)
+                {
+                    _trayIcon.ToggleRequested -= OnToggleRequested;
+                }
+            },
+            () =>
+            {
+                if (_trayIcon is not null)
+                {
+                    _trayIcon.ShowResponseRequested -= OnShowResponseRequested;
+                }
+            },
+            () =>
+            {
+                if (_trayIcon is not null)
+                {
+                    _trayIcon.SettingsRequested -= OnSettingsRequested;
+                }
+            },
+            () =>
+            {
+                if (_trayIcon is not null)
+                {
+                    _trayIcon.ExitRequested -= OnExitRequested;
+                }
+            },
+            () => _trayIcon?.Dispose(),
+            () => _singleInstance?.Dispose(),
+            () => _modelManager?.Dispose(),
+            () => _modelHttpClient?.Dispose(),
+            () => _geminiHttpClient?.Dispose(),
+            () => _lifetimeCancellation.Dispose(),
+            () =>
+            {
+                if (Volatile.Read(ref _privacyTransitionsPending) == 0)
+                {
+                    _privacyTransitionGate.Dispose();
+                }
+            });
     }
 }

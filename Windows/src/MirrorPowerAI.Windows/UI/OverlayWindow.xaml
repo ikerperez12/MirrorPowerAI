@@ -44,9 +44,10 @@
             <TextBox x:Name="QuestionTextBox"
                      MaxHeight="110"
                      IsReadOnly="True"
-                     IsReadOnlyCaretVisible="True"
-                     TextWrapping="Wrap"
-                     VerticalScrollBarVisibility="Auto"
+                      IsReadOnlyCaretVisible="True"
+                      TextWrapping="Wrap"
+                      VerticalScrollBarVisibility="Auto"
+                     automation:AutomationProperties.LiveSetting="Polite"
                      automation:AutomationProperties.Name="{loc:Loc QuestionHeading}" />
         </StackPanel>
 

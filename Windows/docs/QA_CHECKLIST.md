@@ -5,12 +5,14 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 ## Shell y controles globales
 
 - [ ] Preflight de shell: con la aplicación normal cerrada, ejecutar `./Windows/verify-shell.ps1` en una sesión local e interactiva. Comprueba mutex, bandeja y el registro/liberación de `Alt+Shift+L`, sin tocar configuración, audio, modelos ni red.
+- [ ] Preflight de UI: ejecutar `./Windows/verify-ui.ps1` en una sesión local e interactiva. Comprueba el ciclo WPF real de configuración y overlay con texto fijo no sensible, renderizado, UI Automation, foco y limpieza; no carga ni guarda configuración, no usa DPAPI, audio, red, modelos ni sesiones, y no sustituye las comprobaciones manuales de accesibilidad o captura.
 - [ ] Abrir la aplicación normal y comprobar visualmente el icono de la bandeja y su menú mediante teclado.
 - [ ] Pulsar físicamente `Alt+Shift+L` para iniciar/detener una sesión y comprobar que al salir no queda icono ni proceso residual.
+- [ ] Durante una sesión, verificar que los cambios `Capturando`, `Procesando`, `Error` y regreso a `Preparado` ofrecen feedback de bandeja genérico y localizado, sin API key, contexto, audio, pregunta, respuesta ni detalle del proveedor; el arranque inicial en `Preparado` debe permanecer silencioso.
 
 ## Captura y exclusión del overlay
 
-- [ ] Preflight de API: ejecutar `./Windows/build.ps1 -ReleaseGate` en una sesión local e interactiva; publica y verifica `WDA_EXCLUDEFROMCAPTURE` en una ventana WPF real, además de los recursos del shell, pero no sustituye las capturas reales de esta sección.
+- [ ] Preflight de API: ejecutar `./Windows/build.ps1 -ReleaseGate` en una sesión local e interactiva; publica y verifica `WDA_EXCLUDEFROMCAPTURE`, shell, ciclo WPF/UI Automation y procedencia del portable. No sustituye las capturas reales de esta sección ni las pruebas manuales de accesibilidad.
 - [ ] Snipping Tool: captura de pantalla completa.
 - [ ] Snipping Tool: captura de ventana.
 - [ ] OBS: Display Capture.
@@ -54,6 +56,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 - [ ] Toda la configuración se opera con Tab/Shift+Tab/Enter/Espacio/Escape.
 - [ ] Foco visible y orden lógico.
 - [ ] Narrator anuncia nombres, roles, valores, errores y cambios de estado.
+- [ ] Narrator y la configuración de notificaciones de Windows permiten detectar el feedback genérico de bandeja durante una transición de sesión, sin revelar contenido sensible.
 - [ ] Tema claro y oscuro.
 - [ ] Alto contraste.
 - [ ] Texto al 200 % sin pérdida de controles o contenido.

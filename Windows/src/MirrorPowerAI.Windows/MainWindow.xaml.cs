@@ -3,8 +3,10 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using MirrorPowerAI.Core.Privacy;
 using MirrorPowerAI.Core.Security;
 using MirrorPowerAI.Windows.Audio;
@@ -35,6 +37,8 @@ public partial class MainWindow : Window
     private bool _isLoading;
     private bool _apiKeyWasRead;
     private bool _contextWasRead;
+    private bool _statusAnnouncementPending;
+    private bool _statusAnnouncementScheduled;
 
     /// <summary>Gets whether protected and non-secret settings are being persisted.</summary>
     public bool IsSaving { get; private set; }
@@ -55,10 +59,18 @@ public partial class MainWindow : Window
         _audioDeviceCatalog = audioDeviceCatalog ?? throw new ArgumentNullException(nameof(audioDeviceCatalog));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         InitializeComponent();
+        ContentRendered += OnContentRendered;
+        Activated += OnWindowActivated;
     }
 
     /// <summary>Raised after both protected and non-secret settings are saved.</summary>
     public event EventHandler<SettingsSavedEventArgs>? SettingsSaved;
+
+    /// <summary>
+    /// Raised after a visible settings status was submitted to UI Automation. The event contains no
+    /// message, so tests can verify announcement timing without observing protected settings.
+    /// </summary>
+    internal event EventHandler? StatusAnnouncementRaised;
 
     /// <summary>Reloads all fields from per-user storage before the window is shown.</summary>
     /// <param name="cancellationToken">Cancels storage and device enumeration.</param>
@@ -279,15 +291,54 @@ public partial class MainWindow : Window
     private void ShowStatus(string message, bool isError)
     {
         StatusText.Text = isError ? $"⚠ {message}" : message;
+        AutomationProperties.SetName(StatusText, StatusText.Text);
         StatusText.Visibility = Visibility.Visible;
+        _statusAnnouncementPending = true;
+        ScheduleStatusAnnouncement();
+    }
+
+    private void OnContentRendered(object? sender, EventArgs eventArgs) => ScheduleStatusAnnouncement();
+
+    private void OnWindowActivated(object? sender, EventArgs eventArgs) => ScheduleStatusAnnouncement();
+
+    private void ScheduleStatusAnnouncement()
+    {
+        if (!_statusAnnouncementPending ||
+            _statusAnnouncementScheduled ||
+            !IsVisible ||
+            !StatusText.IsVisible ||
+            Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        _statusAnnouncementScheduled = true;
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(AnnounceStatusWhenVisible));
+    }
+
+    private void AnnounceStatusWhenVisible()
+    {
+        _statusAnnouncementScheduled = false;
+        if (!_statusAnnouncementPending ||
+            !IsVisible ||
+            !StatusText.IsVisible ||
+            string.IsNullOrWhiteSpace(StatusText.Text))
+        {
+            return;
+        }
+
         var peer = UIElementAutomationPeer.CreatePeerForElement(StatusText)
             ?? new TextBlockAutomationPeer(StatusText);
         peer.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+        _statusAnnouncementPending = false;
+        StatusAnnouncementRaised?.Invoke(this, EventArgs.Empty);
     }
 
     private void HideStatus()
     {
+        _statusAnnouncementPending = false;
         StatusText.Text = string.Empty;
+        StatusText.ClearValue(AutomationProperties.NameProperty);
         StatusText.Visibility = Visibility.Collapsed;
     }
 

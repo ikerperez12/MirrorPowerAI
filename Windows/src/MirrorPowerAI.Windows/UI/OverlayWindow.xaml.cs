@@ -2,8 +2,10 @@ using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using MirrorPowerAI.Windows.Platform;
 using Forms = System.Windows.Forms;
+using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace MirrorPowerAI.Windows.UI;
 
@@ -12,6 +14,9 @@ namespace MirrorPowerAI.Windows.UI;
 /// </summary>
 public partial class OverlayWindow : Window
 {
+    private bool _contentAnnouncementPending;
+    private bool _contentAnnouncementScheduled;
+
     /// <summary>Initializes an empty overlay. Sensitive text must be assigned only after protection succeeds.</summary>
     public OverlayWindow()
     {
@@ -19,19 +24,30 @@ public partial class OverlayWindow : Window
         ContentRendered += OnContentRendered;
     }
 
+    /// <summary>
+    /// Raised in question-then-answer order after visible protected text is submitted to UI
+    /// Automation. The event deliberately carries no user text and exists for local UI verification.
+    /// </summary>
+    internal event EventHandler<OverlayContentAnnouncementEventArgs>? ContentAnnouncementRaised;
+
     /// <summary>Inserts plain text after the owning presenter verifies capture exclusion.</summary>
     /// <param name="question">Transcribed question.</param>
     /// <param name="answer">Generated answer.</param>
     public void SetProtectedContent(string? question, string answer)
     {
+        Dispatcher.VerifyAccess();
         ArgumentException.ThrowIfNullOrWhiteSpace(answer);
         QuestionTextBox.Text = question ?? string.Empty;
         AnswerTextBox.Text = answer;
+        _contentAnnouncementPending = true;
+        ScheduleContentAnnouncement();
     }
 
     /// <summary>Clears all potentially sensitive text before closing or after a protection failure.</summary>
     public void ClearSensitiveContent()
     {
+        Dispatcher.VerifyAccess();
+        _contentAnnouncementPending = false;
         QuestionTextBox.Clear();
         AnswerTextBox.Clear();
     }
@@ -68,10 +84,51 @@ public partial class OverlayWindow : Window
 
     private void OnContentRendered(object? sender, EventArgs eventArgs)
     {
+        ScheduleContentAnnouncement();
+    }
+
+    private void ScheduleContentAnnouncement()
+    {
+        if (!_contentAnnouncementPending ||
+            _contentAnnouncementScheduled ||
+            !IsVisible ||
+            !AnswerTextBox.IsVisible ||
+            Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        _contentAnnouncementScheduled = true;
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(AnnounceContentWhenVisible));
+    }
+
+    private void AnnounceContentWhenVisible()
+    {
+        _contentAnnouncementScheduled = false;
+        if (!_contentAnnouncementPending ||
+            !IsVisible ||
+            !AnswerTextBox.IsVisible ||
+            string.IsNullOrWhiteSpace(AnswerTextBox.Text))
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(QuestionTextBox.Text))
+        {
+            RaiseLiveRegionChanged(QuestionTextBox, OverlayContentRegion.Question);
+        }
+
+        RaiseLiveRegionChanged(AnswerTextBox, OverlayContentRegion.Answer);
+        _contentAnnouncementPending = false;
         AnswerTextBox.Focus();
-        var peer = UIElementAutomationPeer.CreatePeerForElement(AnswerTextBox)
-            ?? new TextBoxAutomationPeer(AnswerTextBox);
+    }
+
+    private void RaiseLiveRegionChanged(WpfTextBox textBox, OverlayContentRegion region)
+    {
+        var peer = UIElementAutomationPeer.CreatePeerForElement(textBox)
+            ?? new TextBoxAutomationPeer(textBox);
         peer.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+        ContentAnnouncementRaised?.Invoke(this, new OverlayContentAnnouncementEventArgs(region));
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs eventArgs) => Close();
@@ -94,4 +151,22 @@ public partial class OverlayWindow : Window
         ContentRendered -= OnContentRendered;
         base.OnClosed(e);
     }
+}
+
+/// <summary>Identifies the protected text region announced by the overlay.</summary>
+internal enum OverlayContentRegion
+{
+    /// <summary>The transcribed question.</summary>
+    Question,
+
+    /// <summary>The generated answer.</summary>
+    Answer,
+}
+
+/// <summary>Contains only the kind of protected region announced to UI Automation.</summary>
+/// <param name="region">The announced region, never its text.</param>
+internal sealed class OverlayContentAnnouncementEventArgs(OverlayContentRegion region) : EventArgs
+{
+    /// <summary>Gets the announced region.</summary>
+    public OverlayContentRegion Region { get; } = region;
 }

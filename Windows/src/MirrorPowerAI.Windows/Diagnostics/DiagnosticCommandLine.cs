@@ -8,6 +8,7 @@ internal static class DiagnosticCommandLine
     private const string VerifyOverlayArgument = "--verify-overlay";
     private const string VerifyWasapiArgument = "--verify-wasapi";
     private const string VerifyShellArgument = "--verify-shell";
+    private const string VerifyUiArgument = "--verify-ui";
     private const string RequireAudibleSignalArgument = "--require-audible-signal";
 
     /// <summary>
@@ -22,6 +23,7 @@ internal static class DiagnosticCommandLine
         var overlayCount = 0;
         var wasapiCount = 0;
         var shellCount = 0;
+        var uiCount = 0;
         var audibleSignalCount = 0;
 
         foreach (var argument in arguments)
@@ -38,13 +40,17 @@ internal static class DiagnosticCommandLine
             {
                 shellCount++;
             }
+            else if (string.Equals(argument, VerifyUiArgument, StringComparison.Ordinal))
+            {
+                uiCount++;
+            }
             else if (string.Equals(argument, RequireAudibleSignalArgument, StringComparison.Ordinal))
             {
                 audibleSignalCount++;
             }
         }
 
-        var diagnosticCount = overlayCount + wasapiCount + shellCount;
+        var diagnosticCount = overlayCount + wasapiCount + shellCount + uiCount;
         if (diagnosticCount == 0)
         {
             return audibleSignalCount == 0
@@ -64,7 +70,9 @@ internal static class DiagnosticCommandLine
 
         return audibleSignalCount == 0
             ? new DiagnosticInvocation(
-                overlayCount == 1 ? DiagnosticKind.Overlay : DiagnosticKind.Shell,
+                overlayCount == 1
+                    ? DiagnosticKind.Overlay
+                    : shellCount == 1 ? DiagnosticKind.Shell : DiagnosticKind.Ui,
                 RequireAudibleSignal: false)
             : DiagnosticInvocation.Invalid;
     }
@@ -86,6 +94,9 @@ internal enum DiagnosticKind
 
     /// <summary>Verifies tray, mutex, and hotkey shell resources.</summary>
     Shell,
+
+    /// <summary>Verifies one real WPF settings-and-overlay lifecycle without starting a user session.</summary>
+    Ui,
 
     /// <summary>The switches conflict or violate a diagnostic contract.</summary>
     Invalid,
