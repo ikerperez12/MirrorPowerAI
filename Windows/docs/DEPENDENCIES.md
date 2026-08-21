@@ -18,5 +18,6 @@ Acciones CI fijadas:
 |---|---|---|
 | actions/checkout | v7.0.1 | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
 | actions/setup-dotnet | v6.0.0 | `a98b56852c35b8e3190ac28c8c2271da59106c68` |
+| gitleaks/gitleaks-action | v3.0.0 | `e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e` |
 
 No se incluye el modelo Whisper en el repositorio ni en artefactos. Su descarga y términos deben revisarse de forma independiente antes de una distribución pública.
