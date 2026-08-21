@@ -26,13 +26,15 @@ public sealed class NAudioLoopbackCaptureSession : ILoopbackCaptureSession
     private const long ReferenceTimesPerSecond = 10_000_000;
     private const long ReferenceTimesPerMillisecond = 10_000;
     private const int RequestedBufferMilliseconds = 100;
+    private static readonly TimeSpan CaptureThreadJoinTimeout = TimeSpan.FromSeconds(5);
 
     private readonly MMDevice _device;
     private readonly AudioClient _audioClient;
     private readonly WaveFormat _waveFormat;
     private readonly ManualResetEventSlim _stopRequested = new(false);
+    private readonly object _stopSignalSync = new();
+    private readonly LoopbackCaptureSessionOwnership _ownership = new();
     private Thread? _captureThread;
-    private int _started;
     private int _disposed;
 
     /// <summary>
@@ -92,22 +94,42 @@ public sealed class NAudioLoopbackCaptureSession : ILoopbackCaptureSession
     public void Start()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        if (Interlocked.Exchange(ref _started, 1) != 0)
+        if (!_ownership.TryStart())
         {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
             throw new InvalidOperationException("The loopback session can only be started once.");
         }
 
-        _captureThread = new Thread(CaptureLoop)
+        try
         {
-            IsBackground = true,
-            Name = "MirrorPowerAI WASAPI loopback",
-        };
-        _captureThread.SetApartmentState(ApartmentState.MTA);
-        _captureThread.Start();
+            var captureThread = new Thread(CaptureLoop)
+            {
+                IsBackground = true,
+                Name = "MirrorPowerAI WASAPI loopback",
+            };
+            captureThread.SetApartmentState(ApartmentState.MTA);
+            Volatile.Write(ref _captureThread, captureThread);
+            captureThread.Start();
+        }
+        catch
+        {
+            Volatile.Write(ref _captureThread, null);
+            ReleaseAfterFailedStart();
+            throw;
+        }
     }
 
     /// <inheritdoc />
-    public void RequestStop() => _stopRequested.Set();
+    public void RequestStop()
+    {
+        lock (_stopSignalSync)
+        {
+            if (_ownership.CanRequestStop())
+            {
+                _stopRequested.Set();
+            }
+        }
+    }
 
     /// <inheritdoc />
     public void Dispose()
@@ -117,31 +139,34 @@ public sealed class NAudioLoopbackCaptureSession : ILoopbackCaptureSession
             return;
         }
 
-        _stopRequested.Set();
-        var thread = _captureThread;
-        if (thread is not null && thread != Thread.CurrentThread)
+        var teardownOwner = RequestDisposeAndStop();
+        if (teardownOwner == LoopbackCaptureTeardownOwner.CallerBeforeStart)
         {
-            if (!thread.Join(TimeSpan.FromSeconds(5)))
-            {
-                // Do not release COM resources underneath a native call that failed to return.
-                return;
-            }
+            ReleasePreStartResources();
+            return;
         }
 
-        // The client owns its AudioCaptureClient wrapper. Dispose it before the endpoint.
-        _audioClient.Dispose();
-        _device.Dispose();
-        _stopRequested.Dispose();
+        if (teardownOwner == LoopbackCaptureTeardownOwner.CaptureThread)
+        {
+            JoinCaptureThreadIfForeign();
+        }
     }
 
     private void CaptureLoop()
     {
+        var captureThreadId = Environment.CurrentManagedThreadId;
+        if (!_ownership.TryClaimCaptureThread(captureThreadId))
+        {
+            return;
+        }
+
         Exception? failure = null;
+        AudioCaptureClient? captureClient = null;
         var clientStarted = false;
 
         try
         {
-            using var captureClient = _audioClient.AudioCaptureClient;
+            captureClient = _audioClient.AudioCaptureClient;
             var bufferFrameCount = _audioClient.BufferSize;
             var actualDuration = (long)(ReferenceTimesPerSecond
                 * (double)bufferFrameCount
@@ -167,19 +192,119 @@ public sealed class NAudioLoopbackCaptureSession : ILoopbackCaptureSession
         }
         finally
         {
-            if (clientStarted)
+            if (_ownership.TryBeginCaptureThreadTeardown(captureThreadId))
             {
-                try
-                {
-                    _audioClient.Stop();
-                }
-                catch (Exception exception)
-                {
-                    failure ??= exception;
-                }
+                failure ??= ReleaseOwnedResources(captureClient, clientStarted, captureThreadId);
             }
 
+            Volatile.Write(ref _captureThread, null);
             Stopped?.Invoke(this, new LoopbackCaptureStoppedEventArgs(failure));
+        }
+    }
+
+    private LoopbackCaptureTeardownOwner RequestDisposeAndStop()
+    {
+        lock (_stopSignalSync)
+        {
+            var teardownOwner = _ownership.RequestDispose(Environment.CurrentManagedThreadId);
+            if (teardownOwner == LoopbackCaptureTeardownOwner.CaptureThread
+                && _ownership.CanRequestStop())
+            {
+                _stopRequested.Set();
+            }
+
+            return teardownOwner;
+        }
+    }
+
+    private void ReleaseAfterFailedStart()
+    {
+        var threadId = Environment.CurrentManagedThreadId;
+        if (_ownership.TryBeginFailedStartTeardown(threadId))
+        {
+            _ = ReleaseOwnedResources(captureClient: null, clientStarted: false, threadId);
+        }
+    }
+
+    private void ReleasePreStartResources()
+    {
+        var threadId = Environment.CurrentManagedThreadId;
+        _ = ReleaseOwnedResources(captureClient: null, clientStarted: false, threadId);
+    }
+
+    private Exception? ReleaseOwnedResources(
+        AudioCaptureClient? captureClient,
+        bool clientStarted,
+        int threadId)
+    {
+        Exception? failure = null;
+
+        void ExecuteStep(LoopbackCaptureTeardownStep step)
+        {
+            try
+            {
+                switch (step)
+                {
+                    case LoopbackCaptureTeardownStep.StopAudioClient when clientStarted:
+                        _audioClient.Stop();
+                        break;
+                    case LoopbackCaptureTeardownStep.DisposeAudioCaptureClient:
+                        captureClient?.Dispose();
+                        break;
+                    case LoopbackCaptureTeardownStep.DisposeAudioClient:
+                        _audioClient.Dispose();
+                        break;
+                    case LoopbackCaptureTeardownStep.DisposeDevice:
+                        _device.Dispose();
+                        break;
+                    case LoopbackCaptureTeardownStep.DisposeStopSignal:
+                        lock (_stopSignalSync)
+                        {
+                            _stopRequested.Dispose();
+                        }
+
+                        break;
+                }
+            }
+            catch (Exception exception)
+            {
+                // Complete every lower-level release even when an earlier COM wrapper faults.
+                failure ??= exception;
+            }
+        }
+
+        try
+        {
+            LoopbackCaptureTeardownPlan.Execute(ExecuteStep);
+        }
+        finally
+        {
+            _ownership.CompleteTeardown(threadId);
+        }
+
+        return failure;
+    }
+
+    private void JoinCaptureThreadIfForeign()
+    {
+        var captureThread = Volatile.Read(ref _captureThread);
+        if (captureThread is null || captureThread == Thread.CurrentThread)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!captureThread.Join(CaptureThreadJoinTimeout))
+            {
+                // The capture thread remains the exclusive COM owner after a bounded join expires.
+                _ownership.RecordJoinTimeout();
+            }
+        }
+        catch (ThreadStateException)
+        {
+            // Never free COM resources on this foreign thread if the worker did not become joinable.
+            _ownership.RecordJoinTimeout();
         }
     }
 
