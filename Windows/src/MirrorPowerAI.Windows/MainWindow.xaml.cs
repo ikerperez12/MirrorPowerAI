@@ -6,12 +6,14 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using MirrorPowerAI.Core.Privacy;
 using MirrorPowerAI.Core.Security;
 using MirrorPowerAI.Windows.Audio;
 using MirrorPowerAI.Windows.Platform;
 using MirrorPowerAI.Windows.Resources;
+using Forms = System.Windows.Forms;
 
 namespace MirrorPowerAI.Windows;
 
@@ -20,6 +22,8 @@ namespace MirrorPowerAI.Windows;
 /// </summary>
 public partial class MainWindow : Window
 {
+    private const double DefaultDpi = 96;
+
     /// <summary>Current Gemini Audio consent wording revision.</summary>
     public const int CurrentGeminiAudioConsentVersion = GeminiAudioConsentPolicy.CurrentVersion;
 
@@ -39,6 +43,7 @@ public partial class MainWindow : Window
     private bool _contextWasRead;
     private bool _statusAnnouncementPending;
     private bool _statusAnnouncementScheduled;
+    private bool _isPositioningBeforeShow;
 
     /// <summary>Gets whether protected and non-secret settings are being persisted.</summary>
     public bool IsSaving { get; private set; }
@@ -59,12 +64,26 @@ public partial class MainWindow : Window
         _audioDeviceCatalog = audioDeviceCatalog ?? throw new ArgumentNullException(nameof(audioDeviceCatalog));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         InitializeComponent();
+        SourceInitialized += OnSourceInitialized;
         ContentRendered += OnContentRendered;
         Activated += OnWindowActivated;
     }
 
     /// <summary>Raised after both protected and non-secret settings are saved.</summary>
     public event EventHandler<SettingsSavedEventArgs>? SettingsSaved;
+
+    /// <summary>
+    /// Shows the settings window after bounding it on the monitor currently under the pointer.
+    /// </summary>
+    /// <remarks>
+    /// The window is hidden, not destroyed, when a user dismisses it. Recomputing placement for each
+    /// call therefore prevents a later tray-menu invocation on another monitor from reopening it off-screen.
+    /// </remarks>
+    public new void Show()
+    {
+        PositionBeforeShow();
+        base.Show();
+    }
 
     /// <summary>
     /// Raised after a visible settings status was submitted to UI Automation. The event contains no
@@ -146,6 +165,110 @@ public partial class MainWindow : Window
     {
         _allowClose = true;
         Close();
+    }
+
+    private void OnSourceInitialized(object? sender, EventArgs eventArgs)
+    {
+        // Calls that are statically typed as Window (such as local UI diagnostics) bypass the hidden
+        // Show method. Source initialization still occurs before the window is rendered, so it is a
+        // safe fallback for that path.
+        PositionBeforeShow();
+    }
+
+    private void PositionBeforeShow()
+    {
+        if (_isPositioningBeforeShow)
+        {
+            return;
+        }
+
+        _isPositioningBeforeShow = true;
+        try
+        {
+            var pointer = Forms.Cursor.Position;
+            var screen = Forms.Screen.FromPoint(pointer);
+            var workingArea = screen.WorkingArea;
+            var dpiScale = GetDpiScale(pointer.X, pointer.Y);
+            if (!SettingsWindowGeometry.TryCalculate(
+                    new PhysicalWorkArea(
+                        workingArea.Left,
+                        workingArea.Top,
+                        workingArea.Right,
+                        workingArea.Bottom),
+                    dpiScale,
+                    out var placement))
+            {
+                return;
+            }
+
+            ApplyDpiScaledSizeConstraints(placement, dpiScale);
+            // EnsureHandle raises SourceInitialized. The reentrancy guard makes that pre-show event a
+            // no-op here, then lets this call place the real HWND in physical monitor coordinates.
+            var windowHandle = new WindowInteropHelper(this).EnsureHandle();
+            if (NativeMethods.SetWindowPos(
+                    windowHandle,
+                    nint.Zero,
+                    placement.Left,
+                    placement.Top,
+                    placement.Width,
+                    placement.Height,
+                    NativeMethods.SwpNoZOrder | NativeMethods.SwpNoActivate))
+            {
+                return;
+            }
+
+            ApplyWpfPlacementFallback(windowHandle, placement);
+        }
+        finally
+        {
+            _isPositioningBeforeShow = false;
+        }
+    }
+
+    private void ApplyDpiScaledSizeConstraints(SettingsWindowPlacement placement, double dpiScale)
+    {
+        // Lower the existing XAML minima before applying maxima so a small working area never creates
+        // an invalid MinWidth > MaxWidth relationship. The central ScrollViewer retains the form fields
+        // while the heading and action buttons stay visible.
+        MinWidth = placement.MinimumWidth / dpiScale;
+        MinHeight = placement.MinimumHeight / dpiScale;
+        MaxWidth = placement.MaximumWidth / dpiScale;
+        MaxHeight = placement.MaximumHeight / dpiScale;
+    }
+
+    private void ApplyWpfPlacementFallback(nint windowHandle, SettingsWindowPlacement placement)
+    {
+        // Use the source's own device transform rather than dividing virtual-desktop coordinates by
+        // the target monitor DPI. That remains correct when monitors have different scaling factors.
+        var source = HwndSource.FromHwnd(windowHandle);
+        var transform = source?.CompositionTarget?.TransformFromDevice ?? System.Windows.Media.Matrix.Identity;
+        var topLeft = transform.Transform(new System.Windows.Point(placement.Left, placement.Top));
+        var bottomRight = transform.Transform(new System.Windows.Point(
+            placement.Left + placement.Width,
+            placement.Top + placement.Height));
+        Left = topLeft.X;
+        Top = topLeft.Y;
+        Width = Math.Max(1, bottomRight.X - topLeft.X);
+        Height = Math.Max(1, bottomRight.Y - topLeft.Y);
+    }
+
+    private static double GetDpiScale(int pointX, int pointY)
+    {
+        var monitor = NativeMethods.MonitorFromPoint(
+            new NativeMethods.NativePoint(pointX, pointY),
+            NativeMethods.MonitorDefaultToNearest);
+        if (monitor == nint.Zero ||
+            NativeMethods.GetDpiForMonitor(
+                monitor,
+                NativeMethods.MonitorDpiTypeEffective,
+                out var dpiX,
+                out _) < 0 ||
+            dpiX == 0)
+        {
+            return 1;
+        }
+
+        return Math.Clamp(dpiX / DefaultDpi, 0.5, 8);
     }
 
     private void PopulateProviderOptions(string selectedId)
@@ -355,6 +478,108 @@ public partial class MainWindow : Window
 
     private sealed record LocalizedOption(string Id, string DisplayName);
     private sealed record SecretReadResult(string? Value, bool WasRead);
+}
+
+/// <summary>Describes a monitor working area in physical pixels.</summary>
+internal readonly record struct PhysicalWorkArea(int Left, int Top, int Right, int Bottom)
+{
+    internal bool HasUsableArea => Right > Left && Bottom > Top;
+}
+
+/// <summary>Contains native physical-pixel bounds and WPF sizing limits for the settings window.</summary>
+internal readonly record struct SettingsWindowPlacement(
+    int Left,
+    int Top,
+    int Width,
+    int Height,
+    int MinimumWidth,
+    int MinimumHeight,
+    int MaximumWidth,
+    int MaximumHeight);
+
+/// <summary>Calculates bounded settings-window geometry without accessing WPF or Win32 state.</summary>
+internal static class SettingsWindowGeometry
+{
+    internal const int PreferredWidthDip = 760;
+    internal const int PreferredHeightDip = 720;
+    internal const int MinimumWidthDip = 520;
+    internal const int MinimumHeightDip = 520;
+    internal const int CompactMinimumWidthDip = 320;
+    internal const int CompactMinimumHeightDip = 360;
+
+    private const double MaximumWidthFraction = 0.92;
+    private const double MaximumHeightFraction = 0.90;
+
+    /// <summary>
+    /// Centers the preferred settings window inside a physical working area, reducing its dynamic
+    /// minimum when the monitor is too small for the normal 520 DIP minimum.
+    /// </summary>
+    /// <param name="workArea">The usable monitor area in physical pixels.</param>
+    /// <param name="dpiScale">Physical pixels per WPF device-independent pixel.</param>
+    /// <param name="placement">The calculated physical bounds and limits when successful.</param>
+    /// <returns><see langword="true"/> when a non-empty, finite geometry could be calculated.</returns>
+    internal static bool TryCalculate(
+        PhysicalWorkArea workArea,
+        double dpiScale,
+        out SettingsWindowPlacement placement)
+    {
+        placement = default;
+        if (!workArea.HasUsableArea || !double.IsFinite(dpiScale) || dpiScale <= 0)
+        {
+            return false;
+        }
+
+        var workingWidth = (long)workArea.Right - workArea.Left;
+        var workingHeight = (long)workArea.Bottom - workArea.Top;
+        var maximumWidth = CalculateMaximum(workingWidth, MaximumWidthFraction);
+        var maximumHeight = CalculateMaximum(workingHeight, MaximumHeightFraction);
+        var minimumWidth = CalculateMinimum(
+            maximumWidth,
+            ScaleToPixels(MinimumWidthDip, dpiScale),
+            ScaleToPixels(CompactMinimumWidthDip, dpiScale));
+        var minimumHeight = CalculateMinimum(
+            maximumHeight,
+            ScaleToPixels(MinimumHeightDip, dpiScale),
+            ScaleToPixels(CompactMinimumHeightDip, dpiScale));
+        var width = Math.Clamp(ScaleToPixels(PreferredWidthDip, dpiScale), minimumWidth, maximumWidth);
+        var height = Math.Clamp(ScaleToPixels(PreferredHeightDip, dpiScale), minimumHeight, maximumHeight);
+        var left = Center(workArea.Left, workingWidth, width);
+        var top = Center(workArea.Top, workingHeight, height);
+
+        placement = new SettingsWindowPlacement(
+            left,
+            top,
+            width,
+            height,
+            minimumWidth,
+            minimumHeight,
+            maximumWidth,
+            maximumHeight);
+        return true;
+    }
+
+    private static int CalculateMaximum(long availablePixels, double fraction)
+    {
+        var limited = Math.Floor(availablePixels * fraction);
+        return (int)Math.Clamp(limited, 1, int.MaxValue);
+    }
+
+    private static int CalculateMinimum(int maximum, int preferredMinimum, int compactMinimum) =>
+        maximum >= preferredMinimum
+            ? preferredMinimum
+            : Math.Min(maximum, compactMinimum);
+
+    private static int ScaleToPixels(int dips, double dpiScale)
+    {
+        var physicalPixels = Math.Round(dips * dpiScale, MidpointRounding.AwayFromZero);
+        return (int)Math.Clamp(physicalPixels, 1, int.MaxValue);
+    }
+
+    private static int Center(int start, long availablePixels, int size)
+    {
+        var centered = (long)start + ((availablePixels - size) / 2);
+        return (int)Math.Clamp(centered, int.MinValue, int.MaxValue);
+    }
 }
 
 /// <summary>Reports newly persisted non-secret settings to application composition.</summary>
