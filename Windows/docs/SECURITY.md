@@ -10,6 +10,7 @@
 - Dependencias NuGet con versiones centrales exactas y lockfiles.
 - Restore bloqueado en build/CI y auditoría NuGet para severidad alta/crítica.
 - GitHub Actions fijadas a SHA de commit y permisos mínimos (`contents: read`).
+- CI verifica formato y analiza el historial confirmado con Gitleaks fijado a SHA; no sube audio, secretos ni artefactos como parte del escaneo.
 - Overlay fail-closed si no puede verificarse la exclusión de captura.
 
 ## Modelo de amenazas acotado
