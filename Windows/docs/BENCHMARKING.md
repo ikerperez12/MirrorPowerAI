@@ -1,6 +1,6 @@
 # Benchmark de Whisper local
 
-`MirrorPowerAI.Benchmark` mide la transcripción local con el modelo Whisper base fijado por la aplicación. Es una utilidad de diagnóstico: valida el WAV de entrada, prepara un modelo cuya integridad se comprueba y muestra el tiempo de Whisper, el RTF y, si se proporciona una referencia, el WER normalizado.
+`MirrorPowerAI.Benchmark` mide la transcripción local con modelos Whisper fijados por origen, revisión, tamaño y SHA-256. Usa `base` por defecto y permite evaluar `small` sólo como alternativa de benchmark si `base` no alcanza el objetivo de precisión. La aplicación sigue usando exclusivamente `base` hasta que el corpus autorizado demuestre que conviene cambiarlo. La utilidad valida el WAV de entrada, prepara el modelo elegido cuya integridad se comprueba y muestra el tiempo de Whisper, el RTF y, si se proporciona una referencia, el WER normalizado.
 
 ## Uso seguro
 
@@ -29,10 +29,11 @@ Opciones principales:
 - `--audio <ruta>` es obligatorio.
 - `--reference <texto>` o `--reference-file <ruta>` permiten calcular WER; son excluyentes.
 - `--language <código|auto>` usa `auto` por defecto.
+- `--model <base|small>` selecciona únicamente uno de los dos descriptores verificables; el predeterminado es `base`. No acepta rutas, URL ni identificadores de modelo libres.
 - `--threads <1-32>` fija los hilos de inferencia; si se omite, usa la mitad de los procesadores lógicos, con un máximo de 8.
 - `--model-dir <ruta>` cambia el directorio del modelo; el predeterminado es `%LOCALAPPDATA%\MirrorPowerAI\models`.
 
-La herramienta prepara el descriptor fijo de `ggml-base.bin` y sólo activa un archivo cuyo tamaño y SHA-256 coinciden con ese descriptor. La preparación o descarga del modelo se informa por separado y no forma parte del RTF.
+La herramienta prepara el descriptor fijo correspondiente y sólo activa un archivo cuyo tamaño y SHA-256 coinciden con él. El resultado conserva el alias, archivo y SHA-256 para hacer auditable la evidencia. La preparación o descarga del modelo se informa por separado y no forma parte del RTF.
 
 ## Interpretar el resultado
 
@@ -40,7 +41,16 @@ La herramienta prepara el descriptor fijo de `ggml-base.bin` y sólo activa un a
 - **RTF** es `tiempo de Whisper / duración del audio`; por ejemplo, `0,25x` implica que esa fase tarda una cuarta parte de la duración del audio. No incluye la preparación ni la verificación del modelo.
 - **WER normalizado** es `ediciones / palabras de referencia`. Para la comparación se ignoran mayúsculas, acentos y puntuación. Sin referencia no se muestra WER.
 
-Para una comparación repetible, registra el comando, la versión del código, el modelo verificado, idioma, número de hilos, duración del audio, WER y RTF. La referencia de rendimiento actual se evalúa con Whisper base en un Ryzen 7 7735HS: WER normalizado menor o igual a 20 % y RTF menor o igual a 0,25. La utilidad sólo acepta el descriptor base fijado para evitar introducir un modelo sin procedencia verificada. Si base no cumple precisión, la matriz prevé evaluar `small` con RTF menor o igual a 0,5 después de añadir en revisión un descriptor `small` igualmente fijado por origen, tamaño y SHA-256.
+Para una comparación repetible, registra el comando, la versión del código, el modelo verificado, idioma, número de hilos, duración del audio, WER y RTF. La referencia de rendimiento actual se evalúa con Whisper base en un Ryzen 7 7735HS: WER normalizado menor o igual a 20 % y RTF menor o igual a 0,25. Si `base` no cumple precisión, evalúa el descriptor fijo `small` con un comando explícito como el siguiente y exige RTF menor o igual a 0,5:
+
+```powershell
+.\Windows\benchmark.ps1 --audio .\ruta\audio-publico.wav `
+  --reference-file .\ruta\audio-publico.txt `
+  --language es `
+  --model small
+```
+
+Los dos descriptores están cerrados en código: no se acepta un modelo de procedencia no verificada.
 
 ## Alcance de la medición
 

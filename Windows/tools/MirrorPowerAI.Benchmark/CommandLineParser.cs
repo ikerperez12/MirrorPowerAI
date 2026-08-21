@@ -5,10 +5,17 @@ namespace MirrorPowerAI.Benchmark;
 internal sealed record BenchmarkOptions(
     string AudioPath,
     string ModelDirectory,
+    BenchmarkModel Model,
     string Language,
     int ThreadCount,
     string? ReferenceText,
     string? ReferenceFilePath);
+
+internal enum BenchmarkModel
+{
+    Base,
+    Small,
+}
 
 internal sealed record CommandLineParseResult(
     BenchmarkOptions? Options,
@@ -31,6 +38,7 @@ internal static class CommandLineParser
           --reference <texto>        Referencia literal para calcular WER normalizado.
           --reference-file <ruta>    Archivo UTF-8 de referencia para calcular WER normalizado.
           --language <código|auto>   Idioma de Whisper; valor predeterminado: auto.
+          --model <base|small>       Modelo fijado para medir; por defecto: base.
           --threads <1-32>           Hilos de inferencia; por defecto: mitad de CPU, máximo 8.
           --model-dir <ruta>         Directorio del modelo verificado. Por defecto:
                                      %LOCALAPPDATA%\MirrorPowerAI\models
@@ -46,6 +54,7 @@ internal static class CommandLineParser
 
         string? audioPath = null;
         string? modelDirectory = null;
+        BenchmarkModel? model = null;
         string? language = null;
         string? referenceText = null;
         string? referenceFilePath = null;
@@ -63,6 +72,7 @@ internal static class CommandLineParser
             if (argument is not (
                 "--audio" or
                 "--model-dir" or
+                "--model" or
                 "--language" or
                 "--threads" or
                 "--reference" or
@@ -94,6 +104,19 @@ internal static class CommandLineParser
                     break;
                 case "--model-dir":
                     modelDirectory = value;
+                    break;
+                case "--model":
+                    model = value.Trim().ToLowerInvariant() switch
+                    {
+                        "base" => BenchmarkModel.Base,
+                        "small" => BenchmarkModel.Small,
+                        _ => null,
+                    };
+                    if (model is null)
+                    {
+                        return Error("--model debe ser 'base' o 'small'.");
+                    }
+
                     break;
                 case "--language":
                     language = value.Trim().ToLowerInvariant();
@@ -140,11 +163,13 @@ internal static class CommandLineParser
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "MirrorPowerAI",
             "models");
+        model ??= BenchmarkModel.Base;
         threadCount ??= Math.Clamp(Environment.ProcessorCount / 2, 1, 8);
 
         var options = new BenchmarkOptions(
             audioPath,
             modelDirectory,
+            model.Value,
             language,
             threadCount.Value,
             referenceText,

@@ -11,7 +11,10 @@ internal static class BenchmarkOutput
 
         output.WriteLine();
         output.WriteLine("Resultado");
-        output.WriteLine($"  Modelo: {result.ModelPath}");
+        output.WriteLine($"  Modelo: {BenchmarkCommand.ToOptionValue(result.Model)} ({result.ModelDescriptor.FileName})");
+        output.WriteLine($"  Origen fijado: {result.ModelDescriptor.DownloadUri.AbsoluteUri}");
+        output.WriteLine($"  SHA-256 del modelo: {result.ModelDescriptor.Sha256}");
+        output.WriteLine($"  Ruta local del modelo: {result.ModelPath}");
         output.WriteLine($"  Idioma: {result.Language}");
         output.WriteLine($"  Hilos: {result.ThreadCount.ToString(CultureInfo.InvariantCulture)}");
         output.WriteLine($"  Duración de audio: {FormatSeconds(result.AudioDuration)} s");

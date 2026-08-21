@@ -25,6 +25,17 @@ public sealed record WhisperModelDescriptor(
         "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe");
 
     /// <summary>
+    /// Gets the pinned <c>ggml-small.bin</c> descriptor for benchmark-only accuracy evaluation.
+    /// </summary>
+    public static WhisperModelDescriptor DefaultSmall { get; } = new(
+        "ggml-small.bin",
+        new Uri(
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/" +
+            "5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.bin"),
+        487_601_967,
+        "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b");
+
+    /// <summary>
     /// Validates the descriptor before any filesystem or network access occurs.
     /// </summary>
     /// <exception cref="ArgumentException">Thrown when a descriptor field is unsafe or invalid.</exception>

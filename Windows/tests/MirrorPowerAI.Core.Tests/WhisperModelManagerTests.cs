@@ -22,6 +22,22 @@ public sealed class WhisperModelManagerTests
     }
 
     [Fact]
+    public void DefaultSmall_Always_UsesPinnedRevisionFileNameSizeAndHash()
+    {
+        var descriptor = WhisperModelDescriptor.DefaultSmall;
+
+        Assert.Equal("ggml-small.bin", descriptor.FileName);
+        Assert.Contains(
+            "5359861c739e955e79d9a303bcbc70fb988958b1",
+            descriptor.DownloadUri.AbsoluteUri,
+            StringComparison.Ordinal);
+        Assert.Equal(487_601_967, descriptor.ExpectedSize);
+        Assert.Equal(
+            "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
+            descriptor.Sha256);
+    }
+
+    [Fact]
     public async Task EnsureAvailableAsync_ValidExistingModel_ReusesWithoutNetwork()
     {
         var bytes = new byte[] { 1, 2, 3, 4 };

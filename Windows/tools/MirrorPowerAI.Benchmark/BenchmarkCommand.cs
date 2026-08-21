@@ -8,6 +8,8 @@ internal sealed record BenchmarkResult(
     string AudioPath,
     TimeSpan AudioDuration,
     string ModelPath,
+    BenchmarkModel Model,
+    WhisperModelDescriptor ModelDescriptor,
     TimeSpan ModelPreparationElapsed,
     string Language,
     int ThreadCount,
@@ -34,13 +36,14 @@ internal static class BenchmarkCommand
 
         output.WriteLine("MirrorPowerAI Whisper benchmark");
         output.WriteLine($"Audio: {wave.Path}");
-        output.WriteLine("Preparando y verificando el modelo fijado...");
+        output.WriteLine($"Preparando y verificando el modelo fijado ({ToOptionValue(options.Model)})...");
         await output.FlushAsync(cancellationToken).ConfigureAwait(false);
 
+        var descriptor = SelectDescriptor(options.Model);
         using var httpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         using var modelManager = new WhisperModelManager(
             httpClient,
-            WhisperModelDescriptor.DefaultBase);
+            descriptor);
         var modelStopwatch = Stopwatch.StartNew();
         var modelPath = await modelManager
             .EnsureAvailableAsync(options.ModelDirectory, cancellationToken)
@@ -67,6 +70,8 @@ internal static class BenchmarkCommand
             wave.Path,
             wave.Duration,
             modelPath,
+            options.Model,
+            descriptor,
             modelStopwatch.Elapsed,
             options.Language,
             options.ThreadCount,
@@ -75,6 +80,20 @@ internal static class BenchmarkCommand
             realTimeFactor,
             wordErrorRate);
     }
+
+    internal static WhisperModelDescriptor SelectDescriptor(BenchmarkModel model) => model switch
+    {
+        BenchmarkModel.Base => WhisperModelDescriptor.DefaultBase,
+        BenchmarkModel.Small => WhisperModelDescriptor.DefaultSmall,
+        _ => throw new ArgumentOutOfRangeException(nameof(model)),
+    };
+
+    internal static string ToOptionValue(BenchmarkModel model) => model switch
+    {
+        BenchmarkModel.Base => "base",
+        BenchmarkModel.Small => "small",
+        _ => throw new ArgumentOutOfRangeException(nameof(model)),
+    };
 
     private static async Task<string?> ResolveReferenceAsync(
         BenchmarkOptions options,
