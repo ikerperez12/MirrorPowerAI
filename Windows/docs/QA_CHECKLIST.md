@@ -4,7 +4,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 
 ## Captura y exclusión del overlay
 
-- [ ] Preflight de API: ejecutar `./Windows/verify-overlay.ps1` después de `./Windows/build.ps1`; no sustituye las capturas reales de esta sección.
+- [ ] Preflight de API: ejecutar `./Windows/build.ps1 -ReleaseGate` en una sesión local e interactiva; publica y verifica `WDA_EXCLUDEFROMCAPTURE` en una ventana WPF real, pero no sustituye las capturas reales de esta sección.
 - [ ] Snipping Tool: captura de pantalla completa.
 - [ ] Snipping Tool: captura de ventana.
 - [ ] OBS: Display Capture.

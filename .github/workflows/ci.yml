@@ -41,6 +41,7 @@ jobs:
 
       - name: Build, test and publish
         shell: pwsh
+        # WDA verification needs a local interactive DWM desktop and is deliberately gated by -ReleaseGate.
         run: ./Windows/build.ps1
 
       - name: List vulnerable dependencies

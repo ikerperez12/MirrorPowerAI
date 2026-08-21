@@ -35,6 +35,14 @@ Desde la raíz del repositorio:
 
 El script ejecuta preflight, restore bloqueado, build Release, xUnit, cobertura del núcleo y publicación autocontenida `win-x64`. La salida local queda en `Windows\artifacts\win-x64` y no se versiona; el equipo de destino no necesita instalar el runtime de .NET.
 
+Para un candidato local que vaya a someterse a QA de distribución, usa la compuerta interactiva:
+
+```powershell
+.\Windows\build.ps1 -ReleaseGate
+```
+
+Además del flujo anterior, publica el ejecutable y verifica en una ventana WPF real que `WDA_EXCLUDEFROMCAPTURE` se puede aplicar y leer. Requiere una sesión local e interactiva de Windows con DWM; se rechaza deliberadamente en CI y no sustituye las pruebas con Snipping Tool, OBS, Teams o Meet. No crea una release de GitHub ni autoriza redistribución de binarios.
+
 Comandos parciales:
 
 ```powershell
@@ -42,6 +50,7 @@ Comandos parciales:
 .\Windows\test.ps1
 .\Windows\publish.ps1
 .\Windows\benchmark.ps1 --help
+.\Windows\verify-overlay.ps1
 ```
 
 ## Primera ejecución
