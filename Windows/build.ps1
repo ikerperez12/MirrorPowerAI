@@ -41,12 +41,12 @@ Invoke-MirrorPowerAIDotNet -Arguments @('build', $solution, '-c', 'Release', '--
 if (-not $SkipPublish) {
     $windowsProject = Join-Path $PSScriptRoot 'src\MirrorPowerAI.Windows\MirrorPowerAI.Windows.csproj'
     Invoke-MirrorPowerAIDotNet -Arguments @('restore', $windowsProject, '--runtime', 'win-x64', '--locked-mode')
-    $publishArguments = @('-NoRestore')
     if ($ReleaseGate) {
-        $publishArguments += '-RequireCleanWorktree'
+        & (Join-Path $PSScriptRoot 'publish.ps1') -NoRestore -RequireCleanWorktree
     }
-
-    & (Join-Path $PSScriptRoot 'publish.ps1') @publishArguments
+    else {
+        & (Join-Path $PSScriptRoot 'publish.ps1') -NoRestore
+    }
 
     if ($ReleaseGate) {
         & (Join-Path $PSScriptRoot 'verify-overlay.ps1')
