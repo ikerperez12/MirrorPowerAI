@@ -100,30 +100,22 @@ public partial class App : System.Windows.Application, IDisposable
         _settingsWindow = new MainWindow(settingsStore, secretStore, audioDevices, localization);
         _settingsWindow.SettingsSaved += OnSettingsSaved;
         _overlayPresenter = new OverlayPresenter(new OverlayProtectionService());
-        _sessionCommands = CreateSessionCommands(settingsStore, secretStore);
+        _sessionCommands = CreateSessionCommands(settingsStore, secretStore, initialSettings);
         _sessionCommands.StateChanged += OnSessionStateChanged;
-        _trayIcon = new TrayIconService(localization);
-        _trayIcon.ToggleRequested += OnToggleRequested;
-        _trayIcon.ShowResponseRequested += OnShowResponseRequested;
-        _trayIcon.SettingsRequested += OnSettingsRequested;
-        _trayIcon.ExitRequested += OnExitRequested;
-        _trayIcon.SetState(_sessionCommands.Snapshot.Activity, _sessionCommands.Snapshot.HasResult);
+        var trayIcon = new TrayIconService(localization);
+        _trayIcon = trayIcon;
+        trayIcon.ToggleRequested += OnToggleRequested;
+        trayIcon.ShowResponseRequested += OnShowResponseRequested;
+        trayIcon.SettingsRequested += OnSettingsRequested;
+        trayIcon.ExitRequested += OnExitRequested;
+        trayIcon.SetState(_sessionCommands.Snapshot.Activity, _sessionCommands.Snapshot.HasResult);
 
         _hotKey = new GlobalHotKeyService();
         _hotKey.Pressed += OnToggleRequested;
-        if (!_hotKey.Registration.IsRegistered)
-        {
-            _trayIcon.ShowError(localization["HotKeyUnavailable"]);
-        }
-        else
-        {
-            _trayIcon.ShowInformation(localization["TrayReady"]);
-        }
-
-        if (!dpiResult.IsUsable)
-        {
-            _trayIcon.ShowError(localization["DpiAwarenessFailed"]);
-        }
+        StartupNotificationPolicy.Publish(
+            _hotKey.Registration.IsRegistered,
+            dpiResult.IsUsable,
+            new LocalizedTrayStartupNotificationSink(trayIcon, resourceKey => localization[resourceKey]));
     }
 
     private void VerifyOverlayProtectionAndExit()
@@ -251,8 +243,12 @@ public partial class App : System.Windows.Application, IDisposable
     /// </summary>
     /// <param name="settingsStore">Bounded non-secret settings storage.</param>
     /// <param name="secretStore">DPAPI-protected key and context storage.</param>
+    /// <param name="initialSettings">Normalized non-secret settings loaded during startup.</param>
     /// <returns>A session command adapter.</returns>
-    private CoreSessionCommands CreateSessionCommands(JsonSettingsStore settingsStore, DpapiSecretStore secretStore)
+    private CoreSessionCommands CreateSessionCommands(
+        JsonSettingsStore settingsStore,
+        DpapiSecretStore secretStore,
+        AppSettings initialSettings)
     {
         _modelHttpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _modelManager = new WhisperModelManager(_modelHttpClient, WhisperModelDescriptor.DefaultBase);
@@ -267,8 +263,27 @@ public partial class App : System.Windows.Application, IDisposable
         var geminiClient = new GeminiClient(
             _geminiHttpClient,
             apiKeyProvider,
-            new GeminiClientOptions { Model = "gemini-3.5-flash" });
+            CreateGeminiClientOptions(initialSettings));
         return new CoreSessionCommands(settingsStore, secretStore, localTranscription, geminiClient);
+    }
+
+    /// <summary>
+    /// Maps normalized persisted settings to the bounded Gemini client options used at application startup.
+    /// </summary>
+    /// <remarks>
+    /// The Gemini client is deliberately long-lived. An internal model selection is therefore applied on
+    /// the next application startup, while ordinary settings saves preserve that value without exposing it
+    /// in the UI.
+    /// </remarks>
+    /// <param name="settings">The untrusted persisted settings to normalize.</param>
+    /// <returns>Options that keep the official Gemini endpoint fixed and select only a valid model identifier.</returns>
+    internal static GeminiClientOptions CreateGeminiClientOptions(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return new GeminiClientOptions
+        {
+            Model = settings.Normalize().GeminiModel,
+        };
     }
 
     private async void OnToggleRequested(object? sender, EventArgs eventArgs)

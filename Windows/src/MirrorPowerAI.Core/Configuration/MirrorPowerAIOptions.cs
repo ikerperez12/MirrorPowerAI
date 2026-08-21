@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using MirrorPowerAI.Core.Gemini;
 using MirrorPowerAI.Core.Transcription;
 
 namespace MirrorPowerAI.Core.Configuration;
@@ -41,7 +42,7 @@ public sealed partial class MirrorPowerAIOptions
     /// <summary>
     /// Gets or sets the Gemini model identifier.
     /// </summary>
-    public string GeminiModel { get; set; } = "gemini-3.5-flash";
+    public string GeminiModel { get; set; } = GeminiClientOptions.DefaultModel;
 
     /// <summary>
     /// Gets or sets the maximum duration of one capture session.
@@ -77,9 +78,7 @@ public sealed partial class MirrorPowerAIOptions
             errors.Add(new(nameof(OutputDeviceId), "El identificador del dispositivo es demasiado largo."));
         }
 
-        if (string.IsNullOrWhiteSpace(GeminiModel) ||
-            GeminiModel.Length > 128 ||
-            !ModelNamePattern().IsMatch(GeminiModel))
+        if (!GeminiClientOptions.IsValidModelIdentifier(GeminiModel))
         {
             errors.Add(new(nameof(GeminiModel), "El identificador del modelo Gemini no es válido."));
         }
@@ -107,9 +106,6 @@ public sealed partial class MirrorPowerAIOptions
 
     [GeneratedRegex("^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$", RegexOptions.CultureInvariant)]
     private static partial Regex LanguageCodePattern();
-
-    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]*$", RegexOptions.CultureInvariant)]
-    private static partial Regex ModelNamePattern();
 }
 
 /// <summary>

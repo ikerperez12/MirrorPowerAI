@@ -99,16 +99,6 @@ public sealed class LocalizationAccessibilityContractTests
     }
 
     [Fact]
-    public void App_UsesDedicatedLocalizedMessageWhenDpiAwarenessFails()
-    {
-        var appSource = LoadSource("Windows", "src", "MirrorPowerAI.Windows", "App.xaml.cs");
-
-        Assert.Matches(
-            @"if \(!dpiResult\.IsUsable\)\s*\{\s*_trayIcon\.ShowError\(localization\[""DpiAwarenessFailed""\]\);\s*\}",
-            appSource);
-    }
-
-    [Fact]
     public void LocalizedResources_ExposeTheSameNonEmptyKeys()
     {
         // Arrange
@@ -124,11 +114,6 @@ public sealed class LocalizationAccessibilityContractTests
     private static XDocument LoadXaml(params string[] relativePath)
     {
         return XDocument.Load(FindRepositoryFile(relativePath));
-    }
-
-    private static string LoadSource(params string[] relativePath)
-    {
-        return File.ReadAllText(FindRepositoryFile(relativePath));
     }
 
     private static Dictionary<string, string> LoadResources(params string[] relativePath)

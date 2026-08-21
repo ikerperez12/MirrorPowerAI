@@ -109,6 +109,46 @@ public sealed class MainWindowSecretPersistenceTests
         });
     }
 
+    [Fact]
+    public async Task ReloadAsync_SaveAsync_PreservesHiddenValidGeminiModel()
+    {
+        using var testDirectory = new TemporaryDirectory();
+        var settingsStore = new JsonSettingsStore(Path.Combine(testDirectory.Path, "settings.json"));
+        await settingsStore.SaveAsync(new AppSettings { GeminiModel = "gemini-2.5-flash" });
+        var secretStore = new RecordingSecretStore();
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var window = CreateWindow(settingsStore, secretStore);
+
+            await window.ReloadAsync();
+            GetComboBox(window, "DeviceBox").SelectedValue = "test-device";
+            await window.SaveAsync();
+
+            Assert.Equal("gemini-2.5-flash", (await settingsStore.LoadAsync()).GeminiModel);
+        });
+    }
+
+    [Fact]
+    public async Task SaveAsync_WithoutReload_PreservesHiddenValidGeminiModel()
+    {
+        using var testDirectory = new TemporaryDirectory();
+        var settingsStore = new JsonSettingsStore(Path.Combine(testDirectory.Path, "settings.json"));
+        await settingsStore.SaveAsync(new AppSettings { GeminiModel = "gemini-2.5-flash" });
+        var secretStore = new RecordingSecretStore();
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var window = CreateWindow(settingsStore, secretStore);
+
+            // Public callers can save without first showing the window. The hidden model must not
+            // silently reset in that supported programmatic path.
+            await window.SaveAsync();
+
+            Assert.Equal("gemini-2.5-flash", (await settingsStore.LoadAsync()).GeminiModel);
+        });
+    }
+
     private static MainWindow CreateWindow(JsonSettingsStore settingsStore, ISecretStore secretStore) => new(
         settingsStore,
         secretStore,

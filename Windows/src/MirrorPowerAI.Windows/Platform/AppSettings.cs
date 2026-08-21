@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using MirrorPowerAI.Core.Configuration;
+using MirrorPowerAI.Core.Gemini;
 
 namespace MirrorPowerAI.Windows.Platform;
 
@@ -21,6 +22,16 @@ public sealed record AppSettings
 
     /// <summary>Gets the WASAPI render-device identifier.</summary>
     public string AudioDeviceId { get; init; } = AudioDeviceOption.DefaultDeviceId;
+
+    /// <summary>
+    /// Gets the internally configured Gemini model identifier.
+    /// </summary>
+    /// <remarks>
+    /// This non-secret value is deliberately not presented in the settings UI. It is constrained to
+    /// Gemini model identifiers and takes effect when the application constructs its long-lived client
+    /// on the next startup.
+    /// </remarks>
+    public string GeminiModel { get; init; } = GeminiClientOptions.DefaultModel;
 
     /// <summary>Gets the accepted Gemini Audio consent revision, or zero when consent was not granted.</summary>
     public int GeminiAudioConsentVersion { get; init; }
@@ -46,6 +57,8 @@ public sealed record AppSettings
             audioDeviceId = AudioDeviceOption.DefaultDeviceId;
         }
 
+        var geminiModel = GeminiClientOptions.NormalizeModelOrDefault(GeminiModel);
+
         return this with
         {
             Context = (Context ?? string.Empty).Trim().Length <= 16_000
@@ -54,6 +67,7 @@ public sealed record AppSettings
             TranscriptionProvider = provider,
             Language = language,
             AudioDeviceId = audioDeviceId,
+            GeminiModel = geminiModel,
             GeminiAudioConsentVersion = provider == TranscriptionProviders.GeminiAudio
                 ? Math.Max(0, GeminiAudioConsentVersion)
                 : 0,
@@ -66,18 +80,22 @@ public sealed record AppSettings
 
     /// <summary>Maps persisted Windows settings to the shared Core options model.</summary>
     /// <returns>A validated configuration candidate for one new session.</returns>
-    public MirrorPowerAIOptions ToCoreOptions() => new()
+    public MirrorPowerAIOptions ToCoreOptions()
     {
-        Provider = string.Equals(TranscriptionProvider, TranscriptionProviders.GeminiAudio, StringComparison.Ordinal)
-            ? MirrorPowerAI.Core.Transcription.TranscriptionProvider.GeminiAudio
-            : MirrorPowerAI.Core.Transcription.TranscriptionProvider.LocalWhisper,
-        Language = string.Equals(Language, "auto", StringComparison.OrdinalIgnoreCase) ? "es" : Language,
-        AutomaticLanguageDetection = string.Equals(Language, "auto", StringComparison.OrdinalIgnoreCase),
-        Context = Context,
-        OutputDeviceId = AudioDeviceId == AudioDeviceOption.DefaultDeviceId ? null : AudioDeviceId,
-        GeminiModel = "gemini-3.5-flash",
-        MaxCaptureDuration = MirrorPowerAIOptions.CaptureDurationLimit,
-    };
+        var settings = Normalize();
+        return new MirrorPowerAIOptions
+        {
+            Provider = string.Equals(settings.TranscriptionProvider, TranscriptionProviders.GeminiAudio, StringComparison.Ordinal)
+                ? MirrorPowerAI.Core.Transcription.TranscriptionProvider.GeminiAudio
+                : MirrorPowerAI.Core.Transcription.TranscriptionProvider.LocalWhisper,
+            Language = string.Equals(settings.Language, "auto", StringComparison.OrdinalIgnoreCase) ? "es" : settings.Language,
+            AutomaticLanguageDetection = string.Equals(settings.Language, "auto", StringComparison.OrdinalIgnoreCase),
+            Context = settings.Context,
+            OutputDeviceId = settings.AudioDeviceId == AudioDeviceOption.DefaultDeviceId ? null : settings.AudioDeviceId,
+            GeminiModel = settings.GeminiModel,
+            MaxCaptureDuration = MirrorPowerAIOptions.CaptureDurationLimit,
+        };
+    }
 
     private static IReadOnlySet<string> SupportedLanguages { get; } =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "es", "en", "auto" };

@@ -1,4 +1,5 @@
 using MirrorPowerAI.Core.Configuration;
+using MirrorPowerAI.Core.Gemini;
 using MirrorPowerAI.Core.Transcription;
 
 namespace MirrorPowerAI.Core.Tests;
@@ -26,7 +27,7 @@ public sealed class ConfigurationTests
         Assert.Equal(TranscriptionProvider.LocalWhisper, options.Provider);
         Assert.Equal("es", options.Language);
         Assert.Equal(TimeSpan.FromSeconds(300), options.MaxCaptureDuration);
-        Assert.Equal("gemini-3.5-flash", options.GeminiModel);
+        Assert.Equal(GeminiClientOptions.DefaultModel, options.GeminiModel);
     }
 
     [Fact]
@@ -72,5 +73,26 @@ public sealed class ConfigurationTests
         var errors = options.Validate();
 
         Assert.Equal(6, errors.Count);
+    }
+
+    [Theory]
+    [InlineData("gemini-2.5-flash", true)]
+    [InlineData("gemini_2.5-flash", true)]
+    [InlineData("../unsafe-model", false)]
+    [InlineData("https://example.test/model", false)]
+    [InlineData("model with spaces", false)]
+    public void Validate_GeminiModel_UsesGeminiClientIdentifierPolicy(string model, bool isValid)
+    {
+        // Arrange
+        var options = new MirrorPowerAIOptions { GeminiModel = model };
+
+        // Act
+        var errors = options.Validate();
+
+        // Assert
+        Assert.Equal(isValid, GeminiClientOptions.IsValidModelIdentifier(model));
+        Assert.Equal(
+            !isValid,
+            errors.Any(error => error.PropertyName == nameof(MirrorPowerAIOptions.GeminiModel)));
     }
 }

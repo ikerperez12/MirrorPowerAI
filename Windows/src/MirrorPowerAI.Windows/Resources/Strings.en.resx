@@ -30,7 +30,6 @@
   <data name="TrayAnnouncementProcessing" xml:space="preserve"><value>MirrorPowerAI is processing the request.</value></data>
   <data name="TrayAnnouncementIdle" xml:space="preserve"><value>MirrorPowerAI is ready.</value></data>
   <data name="TrayAnnouncementError" xml:space="preserve"><value>MirrorPowerAI encountered an error. Check the tray menu.</value></data>
-  <data name="TrayReady" xml:space="preserve"><value>MirrorPowerAI is ready. Press Alt+Shift+L to start.</value></data>
   <data name="HotKeyUnavailable" xml:space="preserve"><value>Alt+Shift+L could not be registered. Use the tray menu or release that shortcut.</value></data>
   <data name="NoResponse" xml:space="preserve"><value>There is no response to show yet.</value></data>
   <data name="DpiAwarenessFailed" xml:space="preserve"><value>Per-monitor DPI awareness could not be enabled. The interface may not scale correctly.</value></data>

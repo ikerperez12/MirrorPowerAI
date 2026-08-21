@@ -44,6 +44,8 @@ public partial class MainWindow : Window
     private bool _statusAnnouncementPending;
     private bool _statusAnnouncementScheduled;
     private bool _isPositioningBeforeShow;
+    private bool _persistedSettingsLoaded;
+    private AppSettings _persistedSettings = new();
 
     /// <summary>Gets whether protected and non-secret settings are being persisted.</summary>
     public bool IsSaving { get; private set; }
@@ -107,7 +109,9 @@ public partial class MainWindow : Window
             var context = await ReadSecretSafelyAsync(ProjectContextSecretName, cancellationToken);
             _apiKeyWasRead = apiKey.WasRead;
             _contextWasRead = context.WasRead;
-            var settings = (persistedSettings with { Context = context.Value ?? string.Empty }).Normalize();
+            _persistedSettings = persistedSettings.Normalize();
+            _persistedSettingsLoaded = true;
+            var settings = (_persistedSettings with { Context = context.Value ?? string.Empty }).Normalize();
             ApiKeyBox.Password = apiKey.Value ?? string.Empty;
             ContextBox.Text = settings.Context;
             PopulateProviderOptions(settings.TranscriptionProvider);
@@ -346,22 +350,31 @@ public partial class MainWindow : Window
         }
 
         IsSaving = true;
-        var settings = new AppSettings
-        {
-            Context = ContextBox.Text,
-            TranscriptionProvider = provider,
-            Language = LanguageBox.SelectedValue as string ?? "es",
-            AudioDeviceId = DeviceBox.SelectedValue as string ?? AudioDeviceOption.DefaultDeviceId,
-            GeminiAudioConsentVersion = provider == TranscriptionProviders.GeminiAudio && hasCloudConsent
-                ? CurrentGeminiAudioConsentVersion
-                : 0,
-            GeminiAudioConsentGrantedAtUtc = provider == TranscriptionProviders.GeminiAudio && hasCloudConsent
-                ? DateTimeOffset.UtcNow
-                : null,
-        }.Normalize();
-
         try
         {
+            // SaveAsync is public for keyboard/UI automation tests and callers. Preserve hidden,
+            // non-secret configuration even when such a caller did not invoke ReloadAsync first.
+            if (!_persistedSettingsLoaded)
+            {
+                _persistedSettings = (await _settingsStore.LoadAsync()).Normalize();
+                _persistedSettingsLoaded = true;
+            }
+
+            var settings = new AppSettings
+            {
+                Context = ContextBox.Text,
+                TranscriptionProvider = provider,
+                Language = LanguageBox.SelectedValue as string ?? "es",
+                AudioDeviceId = DeviceBox.SelectedValue as string ?? AudioDeviceOption.DefaultDeviceId,
+                GeminiModel = _persistedSettings.GeminiModel,
+                GeminiAudioConsentVersion = provider == TranscriptionProviders.GeminiAudio && hasCloudConsent
+                    ? CurrentGeminiAudioConsentVersion
+                    : 0,
+                GeminiAudioConsentGrantedAtUtc = provider == TranscriptionProviders.GeminiAudio && hasCloudConsent
+                    ? DateTimeOffset.UtcNow
+                    : null,
+            }.Normalize();
+
             _apiKeyWasRead = await SecretWritePolicy.PersistAsync(
                 _secretStore,
                 GeminiApiKeySecretName,
@@ -374,6 +387,8 @@ public partial class MainWindow : Window
                 _contextWasRead);
 
             await _settingsStore.SaveAsync(settings);
+            _persistedSettings = settings with { Context = string.Empty };
+            _persistedSettingsLoaded = true;
             _localization.SetLanguage(settings.Language);
             var deviceOptions = (DeviceBox.ItemsSource as IEnumerable<AudioDeviceOption>)?.ToList() ?? [];
             PopulateProviderOptions(settings.TranscriptionProvider);

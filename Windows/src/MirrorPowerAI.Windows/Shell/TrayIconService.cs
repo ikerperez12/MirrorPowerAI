@@ -9,7 +9,7 @@ namespace MirrorPowerAI.Windows.Shell;
 /// <summary>
 /// Owns the notification-area icon and its keyboard-accessible native context menu.
 /// </summary>
-public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource
+public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource, ITrayErrorNotificationSink
 {
     private const int NotifyIconTextLimit = 63;
     private readonly LocalizationService _localization;

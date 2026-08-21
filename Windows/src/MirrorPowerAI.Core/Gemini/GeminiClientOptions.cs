@@ -9,6 +9,12 @@ public sealed partial class GeminiClientOptions
 {
     private const string AllowedApiHost = "generativelanguage.googleapis.com";
     private const string AllowedApiPath = "/v1beta/";
+    private const int MaximumModelIdentifierLength = 128;
+
+    /// <summary>
+    /// The stable Gemini model used when no valid internal model selection is persisted.
+    /// </summary>
+    public const string DefaultModel = "gemini-3.5-flash";
 
     /// <summary>
     /// Gets or sets the HTTPS Gemini API base address.
@@ -18,7 +24,7 @@ public sealed partial class GeminiClientOptions
     /// <summary>
     /// Gets or sets the model used by both text and audio requests.
     /// </summary>
-    public string Model { get; set; } = "gemini-3.5-flash";
+    public string Model { get; set; } = DefaultModel;
 
     /// <summary>
     /// Gets or sets the maximum duration of one network request.
@@ -66,7 +72,7 @@ public sealed partial class GeminiClientOptions
                 nameof(ApiBaseUri));
         }
 
-        if (string.IsNullOrWhiteSpace(Model) || Model.Length > 128 || !ModelPattern().IsMatch(Model))
+        if (!IsValidModelIdentifier(Model))
         {
             throw new ArgumentException("El identificador del modelo Gemini no es válido.", nameof(Model));
         }
@@ -85,6 +91,24 @@ public sealed partial class GeminiClientOptions
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumResponseBytes, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(MaximumResponseBytes, 4 * 1024 * 1024);
     }
+
+    /// <summary>
+    /// Determines whether a model identifier is safe to insert into the fixed Gemini endpoint path.
+    /// </summary>
+    /// <param name="model">The untrusted model identifier to validate.</param>
+    /// <returns><see langword="true"/> only for bounded plain model identifiers.</returns>
+    public static bool IsValidModelIdentifier(string? model) =>
+        model is { Length: > 0 and <= MaximumModelIdentifierLength } &&
+        !string.IsNullOrWhiteSpace(model) &&
+        ModelPattern().IsMatch(model);
+
+    /// <summary>
+    /// Returns a safe model identifier, replacing a malformed persisted value with <see cref="DefaultModel"/>.
+    /// </summary>
+    /// <param name="model">The untrusted model identifier to normalize.</param>
+    /// <returns>The supplied identifier when valid; otherwise <see cref="DefaultModel"/>.</returns>
+    public static string NormalizeModelOrDefault(string? model) =>
+        IsValidModelIdentifier(model) ? model! : DefaultModel;
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]*$", RegexOptions.CultureInvariant)]
     private static partial Regex ModelPattern();

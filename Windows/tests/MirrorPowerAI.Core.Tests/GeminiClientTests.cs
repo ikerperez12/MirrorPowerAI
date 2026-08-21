@@ -23,7 +23,7 @@ public sealed class GeminiClientTests
         Assert.Equal(HttpMethod.Post, handler.Method);
         Assert.Equal("test-api-key", handler.ApiKey);
         Assert.Equal(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent",
+            $"https://generativelanguage.googleapis.com/v1beta/models/{GeminiClientOptions.DefaultModel}:generateContent",
             handler.RequestUri?.AbsoluteUri);
         Assert.DoesNotContain("test-api-key", handler.RequestUri?.AbsoluteUri ?? string.Empty, StringComparison.Ordinal);
 
@@ -41,6 +41,20 @@ public sealed class GeminiClientTests
         Assert.Equal(
             "¿Qué hace?",
             root.GetProperty("contents")[0].GetProperty("parts")[0].GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public async Task GenerateAnswerAsync_CustomValidModel_UsesConfiguredEndpointPath()
+    {
+        using var handler = RecordingHttpMessageHandler.Json(SuccessfulResponse);
+        using var httpClient = new HttpClient(handler);
+        var client = CreateClient(httpClient, new GeminiClientOptions { Model = "gemini-2.5-flash" });
+
+        _ = await client.GenerateAnswerAsync("pregunta", null);
+
+        Assert.Equal(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            handler.RequestUri?.AbsoluteUri);
     }
 
     [Fact]
