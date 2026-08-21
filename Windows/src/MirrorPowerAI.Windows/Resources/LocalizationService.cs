@@ -26,6 +26,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
     /// <returns>The localized value, or the key in brackets when missing.</returns>
     public string this[string key] => ResourceManager.GetString(key, _culture) ?? $"[{key}]";
 
+    /// <summary>Gets the BCP 47 language tag used by WPF and UI Automation elements.</summary>
+    public string UiLanguage => _culture.IetfLanguageTag;
+
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -44,5 +47,6 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
         CultureInfo.DefaultThreadCurrentUICulture = _culture;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UiLanguage)));
     }
 }

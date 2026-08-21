@@ -4,6 +4,7 @@
         xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
         xmlns:loc="clr-namespace:MirrorPowerAI.Windows.Resources"
         Title="{loc:Loc SettingsTitle}"
+        Language="{Binding UiLanguage, Source={x:Static loc:LocalizationService.Current}, ConverterCulture=en-US}"
         automation:AutomationProperties.Name="{loc:Loc SettingsTitle}"
         Width="760"
         Height="720"
@@ -103,7 +104,8 @@
                     <CheckBox x:Name="CloudConsentBox"
                               MinHeight="32"
                               VerticalContentAlignment="Center"
-                              automation:AutomationProperties.Name="{loc:Loc CloudConsentLabel}">
+                              automation:AutomationProperties.Name="{loc:Loc CloudConsentText}"
+                              automation:AutomationProperties.HelpText="{loc:Loc CloudConsentText}">
                         <TextBlock MaxWidth="620"
                                    TextWrapping="Wrap"
                                    Text="{loc:Loc CloudConsentText}" />

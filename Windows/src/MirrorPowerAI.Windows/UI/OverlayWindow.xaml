@@ -4,6 +4,7 @@
         xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
         xmlns:loc="clr-namespace:MirrorPowerAI.Windows.Resources"
         Title="{loc:Loc OverlayTitle}"
+        Language="{Binding UiLanguage, Source={x:Static loc:LocalizationService.Current}, ConverterCulture=en-US}"
         automation:AutomationProperties.Name="{loc:Loc OverlayTitle}"
         Width="720"
         Height="480"

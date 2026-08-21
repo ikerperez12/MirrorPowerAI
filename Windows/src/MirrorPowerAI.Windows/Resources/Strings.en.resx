@@ -29,6 +29,7 @@
   <data name="TrayReady" xml:space="preserve"><value>MirrorPowerAI is ready. Press Alt+Shift+L to start.</value></data>
   <data name="HotKeyUnavailable" xml:space="preserve"><value>Alt+Shift+L could not be registered. Use the tray menu or release that shortcut.</value></data>
   <data name="NoResponse" xml:space="preserve"><value>There is no response to show yet.</value></data>
+  <data name="DpiAwarenessFailed" xml:space="preserve"><value>Per-monitor DPI awareness could not be enabled. The interface may not scale correctly.</value></data>
   <data name="OverlayProtectionFailed" xml:space="preserve"><value>Windows could not verify capture exclusion. The content will not be shown.</value></data>
   <data name="SessionUnavailable" xml:space="preserve"><value>The session engine has not been connected yet.</value></data>
   <data name="UnexpectedError" xml:space="preserve"><value>The operation could not be completed.</value></data>

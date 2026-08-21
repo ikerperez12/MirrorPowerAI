@@ -29,6 +29,7 @@
   <data name="TrayReady" xml:space="preserve"><value>MirrorPowerAI está listo. Pulsa Alt+Mayús+L para iniciar.</value></data>
   <data name="HotKeyUnavailable" xml:space="preserve"><value>No se pudo registrar Alt+Mayús+L. Usa el menú de la bandeja o libera ese atajo.</value></data>
   <data name="NoResponse" xml:space="preserve"><value>Aún no hay ninguna respuesta que mostrar.</value></data>
+  <data name="DpiAwarenessFailed" xml:space="preserve"><value>No se pudo activar la compatibilidad de DPI por monitor. La interfaz podría no escalarse correctamente.</value></data>
   <data name="OverlayProtectionFailed" xml:space="preserve"><value>Windows no pudo verificar la exclusión de captura. El contenido no se mostrará.</value></data>
   <data name="SessionUnavailable" xml:space="preserve"><value>El motor de sesión todavía no está conectado.</value></data>
   <data name="UnexpectedError" xml:space="preserve"><value>La operación no pudo completarse.</value></data>

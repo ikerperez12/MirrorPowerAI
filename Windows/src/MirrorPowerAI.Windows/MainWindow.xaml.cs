@@ -33,6 +33,8 @@ public partial class MainWindow : Window
     private readonly LocalizationService _localization;
     private bool _allowClose;
     private bool _isLoading;
+    private bool _apiKeyWasRead;
+    private bool _contextWasRead;
 
     /// <summary>Gets whether protected and non-secret settings are being persisted.</summary>
     public bool IsSaving { get; private set; }
@@ -72,6 +74,8 @@ public partial class MainWindow : Window
             var devices = await GetOutputDevicesSafelyAsync(cancellationToken);
             var apiKey = await ReadSecretSafelyAsync(GeminiApiKeySecretName, cancellationToken);
             var context = await ReadSecretSafelyAsync(ProjectContextSecretName, cancellationToken);
+            _apiKeyWasRead = apiKey.WasRead;
+            _contextWasRead = context.WasRead;
             var settings = (persistedSettings with { Context = context.Value ?? string.Empty }).Normalize();
             ApiKeyBox.Password = apiKey.Value ?? string.Empty;
             ContextBox.Text = settings.Context;
@@ -183,7 +187,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void OnSaveClick(object sender, RoutedEventArgs eventArgs)
+    /// <summary>Persists the values currently edited in the settings controls.</summary>
+    /// <remarks>
+    /// Storage failures are presented in the window status region rather than propagated to callers.
+    /// Successful saves raise <see cref="SettingsSaved"/>.
+    /// </remarks>
+    /// <returns>A task that completes after the save attempt has finished.</returns>
+    public async Task SaveAsync()
     {
         if (IsSaving)
         {
@@ -217,23 +227,16 @@ public partial class MainWindow : Window
 
         try
         {
-            if (string.IsNullOrWhiteSpace(ApiKeyBox.Password))
-            {
-                await _secretStore.DeleteSecretAsync(GeminiApiKeySecretName);
-            }
-            else
-            {
-                await _secretStore.SetSecretAsync(GeminiApiKeySecretName, ApiKeyBox.Password);
-            }
-
-            if (string.IsNullOrWhiteSpace(settings.Context))
-            {
-                await _secretStore.DeleteSecretAsync(ProjectContextSecretName);
-            }
-            else
-            {
-                await _secretStore.SetSecretAsync(ProjectContextSecretName, settings.Context);
-            }
+            _apiKeyWasRead = await SecretWritePolicy.PersistAsync(
+                _secretStore,
+                GeminiApiKeySecretName,
+                ApiKeyBox.Password,
+                _apiKeyWasRead);
+            _contextWasRead = await SecretWritePolicy.PersistAsync(
+                _secretStore,
+                ProjectContextSecretName,
+                settings.Context,
+                _contextWasRead);
 
             await _settingsStore.SaveAsync(settings);
             _localization.SetLanguage(settings.Language);
@@ -253,6 +256,8 @@ public partial class MainWindow : Window
             IsSaving = false;
         }
     }
+
+    private async void OnSaveClick(object sender, RoutedEventArgs eventArgs) => await SaveAsync();
 
     private void OnCancelClick(object sender, RoutedEventArgs eventArgs) => Hide();
 

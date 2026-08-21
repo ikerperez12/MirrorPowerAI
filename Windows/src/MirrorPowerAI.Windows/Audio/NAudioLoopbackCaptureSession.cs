@@ -102,6 +102,7 @@ public sealed class NAudioLoopbackCaptureSession : ILoopbackCaptureSession
             IsBackground = true,
             Name = "MirrorPowerAI WASAPI loopback",
         };
+        _captureThread.SetApartmentState(ApartmentState.MTA);
         _captureThread.Start();
     }
 
@@ -140,7 +141,7 @@ public sealed class NAudioLoopbackCaptureSession : ILoopbackCaptureSession
 
         try
         {
-            var captureClient = _audioClient.AudioCaptureClient;
+            using var captureClient = _audioClient.AudioCaptureClient;
             var bufferFrameCount = _audioClient.BufferSize;
             var actualDuration = (long)(ReferenceTimesPerSecond
                 * (double)bufferFrameCount

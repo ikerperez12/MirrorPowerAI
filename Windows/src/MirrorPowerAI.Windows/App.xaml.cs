@@ -99,7 +99,7 @@ public partial class App : System.Windows.Application, IDisposable
 
         if (!dpiResult.IsUsable)
         {
-            _trayIcon.ShowError(localization["OverlayProtectionFailed"]);
+            _trayIcon.ShowError(localization["DpiAwarenessFailed"]);
         }
     }
 
