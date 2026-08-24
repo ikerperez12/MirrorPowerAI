@@ -38,5 +38,5 @@ if ($process.ExitCode -ne 0) {
 }
 
 Write-Information (
-    'La interfaz WPF real mostró, renderizó, expuso controles UIA y cerró configuración y overlay sin usar configuración, DPAPI, audio, modelos ni red.'
+    'La interfaz WPF real cargó valores predeterminados en una ruta temporal aislada, mostró ambos proveedores, expuso controles UIA y cerró configuración y overlay sin usar configuración del usuario, DPAPI, audio real, modelos ni red.'
 ) -InformationAction Continue

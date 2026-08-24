@@ -27,7 +27,7 @@ Haz una copia local de esta plantilla dentro de `Windows\artifacts\qa-evidence\`
 | WASAPI con señal autorizada | `./Windows/verify-wasapi.ps1 -RequireAudibleSignal` | Pendiente / no aplicable | |
 | Suite xUnit y cobertura | `./Windows/test.ps1` | Pendiente | |
 
-La verificación WASAPI no guarda audio ni muestra contenido, pero se ejecuta sólo con la intención expresa del operador. Si se exige señal, reproduce únicamente audio autorizado y no protegido por DRM. `verify-ui.ps1` usa texto fijo no sensible y no carga ni guarda configuración ni usa DPAPI, audio, red, modelos o sesiones; su resultado automatizable no sustituye Narrator, alto contraste, DPI o la matriz de captura real.
+La verificación WASAPI no guarda audio ni muestra contenido, pero se ejecuta sólo con la intención expresa del operador. Si se exige señal, reproduce únicamente audio autorizado y no protegido por DRM. `verify-ui.ps1` usa texto fijo no sensible, valores predeterminados desde una ruta temporal aislada y adaptadores en memoria; no usa configuración del usuario, DPAPI, audio real, red, modelos o sesiones y no deja la ruta temporal creada. Su resultado automatizable no sustituye Narrator, alto contraste, DPI o la matriz de captura real.
 
 ## Captura y exclusión del overlay
 

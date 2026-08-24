@@ -5,7 +5,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 ## Shell y controles globales
 
 - [ ] Preflight de shell: con la aplicación normal cerrada, ejecutar `./Windows/verify-shell.ps1` en una sesión local e interactiva. Comprueba mutex, bandeja y el registro/liberación de `Alt+Shift+L`, sin tocar configuración, audio, modelos ni red.
-- [ ] Preflight de UI: ejecutar `./Windows/verify-ui.ps1` en una sesión local e interactiva. Comprueba el ciclo WPF real de configuración y overlay con texto fijo no sensible, renderizado, UI Automation, foco y limpieza; no carga ni guarda configuración, no usa DPAPI, audio, red, modelos ni sesiones, y no sustituye las comprobaciones manuales de accesibilidad o captura.
+- [ ] Preflight de UI: ejecutar `./Windows/verify-ui.ps1` en una sesión local e interactiva. Comprueba el ciclo WPF real de configuración y overlay con texto fijo no sensible, carga valores predeterminados desde una ruta temporal aislada, valida los estados Local/Gemini, renderizado, UI Automation, foco y limpieza; no usa configuración del usuario, DPAPI, audio real, red, modelos ni sesiones, no deja la ruta temporal creada y no sustituye las comprobaciones manuales de accesibilidad o captura.
 - [ ] Abrir la aplicación normal y comprobar visualmente el icono de la bandeja y su menú mediante teclado.
 - [ ] Pulsar físicamente `Alt+Shift+L` para iniciar/detener una sesión y comprobar que al salir no queda icono ni proceso residual.
 - [ ] Durante una sesión, verificar que los cambios `Capturando`, `Procesando`, `Error` y regreso a `Preparado` ofrecen feedback de bandeja genérico y localizado, sin API key, contexto, audio, pregunta, respuesta ni detalle del proveedor; el arranque inicial en `Preparado` debe permanecer silencioso.
