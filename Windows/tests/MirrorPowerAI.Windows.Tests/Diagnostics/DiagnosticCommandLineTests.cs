@@ -38,6 +38,17 @@ public sealed class DiagnosticCommandLineTests
     }
 
     [Fact]
+    public void Parse_WhisperRuntimeDiagnostic_SelectsOnlyTheNativeRuntimePath()
+    {
+        // Act
+        var invocation = DiagnosticCommandLine.Parse(["--verify-whisper-runtime"]);
+
+        // Assert
+        Assert.Equal(DiagnosticKind.WhisperRuntime, invocation.Kind);
+        Assert.False(invocation.RequireAudibleSignal);
+    }
+
+    [Fact]
     public void Parse_WasapiAudibleRequirement_SelectsWasapiWithRequirement()
     {
         // Act
@@ -66,14 +77,20 @@ public sealed class DiagnosticCommandLineTests
         ["--verify-shell", "--verify-overlay"],
         ["--verify-shell", "--verify-wasapi"],
         ["--verify-shell", "--verify-ui"],
+        ["--verify-shell", "--verify-whisper-runtime"],
         ["--verify-overlay", "--verify-ui"],
+        ["--verify-overlay", "--verify-whisper-runtime"],
         ["--verify-wasapi", "--verify-ui"],
+        ["--verify-wasapi", "--verify-whisper-runtime"],
+        ["--verify-ui", "--verify-whisper-runtime"],
         ["--verify-shell", "--require-audible-signal"],
         ["--verify-overlay", "--require-audible-signal"],
         ["--verify-ui", "--require-audible-signal"],
+        ["--verify-whisper-runtime", "--require-audible-signal"],
         ["--verify-wasapi", "--verify-wasapi"],
         ["--verify-shell", "--verify-shell"],
         ["--verify-ui", "--verify-ui"],
+        ["--verify-whisper-runtime", "--verify-whisper-runtime"],
         ["--verify-wasapi", "--require-audible-signal", "--require-audible-signal"],
     ];
 }

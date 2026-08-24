@@ -76,6 +76,12 @@ public partial class App : System.Windows.Application, IDisposable
             return;
         }
 
+        if (diagnosticInvocation.Kind == DiagnosticKind.WhisperRuntime)
+        {
+            VerifyWhisperRuntimeAndExit();
+            return;
+        }
+
         var localization = LocalizationService.Current;
         var dpiResult = DpiAwareness.TryEnablePerMonitorV2();
 
@@ -213,6 +219,21 @@ public partial class App : System.Windows.Application, IDisposable
         // constructs normal-startup services, so no settings, DPAPI, audio, model, network, or session
         // resource exists on this route.
         _ = Dispatcher.BeginInvoke(new Action(() => _ = RunUiDiagnosticAndExitAsync()));
+    }
+
+    private void VerifyWhisperRuntimeAndExit()
+    {
+        var exitCode = 1;
+        try
+        {
+            exitCode = WhisperRuntimeDiagnostic.Verify() ? 0 : 1;
+        }
+        catch (Exception)
+        {
+            // Native loader details may contain machine paths. The diagnostic exposes only its exit code.
+        }
+
+        Shutdown(exitCode);
     }
 
     private void RunShellDiagnosticAndExit()

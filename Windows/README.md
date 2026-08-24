@@ -33,7 +33,7 @@ Desde la raíz del repositorio:
 .\Windows\build.ps1
 ```
 
-El script ejecuta preflight, restore bloqueado, build Release, xUnit, cobertura del núcleo y publicación autocontenida `win-x64`. La salida local queda en `Windows\artifacts\win-x64` y no se versiona; el equipo de destino no necesita instalar el runtime de .NET. Cada publicación genera `build-provenance.json` con commit, estado limpio/sucio, SDK, RID, hash SHA-256 del ejecutable e inventario ordenado de todos los ficheros del portable con un hash agregado. El manifiesto no se incluye en su propio inventario.
+El script ejecuta preflight, restore bloqueado, build Release, xUnit, cobertura del núcleo, publicación autocontenida `win-x64` y una carga real del runtime Whisper CPU x64 sin modelo ni audio. La salida local queda en `Windows\artifacts\win-x64` y no se versiona; el equipo de destino no necesita instalar el runtime de .NET. Cada publicación genera `build-provenance.json` con commit, estado limpio/sucio, SDK, RID, hash SHA-256 del ejecutable e inventario ordenado de todos los ficheros del portable con un hash agregado. El manifiesto no se incluye en su propio inventario.
 
 Para un candidato local que vaya a someterse a QA de distribución, usa la compuerta interactiva:
 
@@ -47,6 +47,7 @@ Para comprobar después que una copia local del portable sigue siendo exactament
 
 ```powershell
 .\Windows\verify-provenance.ps1
+.\Windows\verify-whisper-runtime.ps1
 ```
 
 El verificador sólo acepta una carpeta bajo `Windows\artifacts`, rechaza enlaces simbólicos, junctions y otros reparse points, y falla si encuentra un fichero añadido, omitido o modificado.
@@ -69,6 +70,8 @@ Comandos parciales:
 `verify-shell.ps1` comprueba de forma aislada la bandeja, el mutex de instancia única y el registro/liberación de `Alt+Shift+L` usando recursos Windows reales. No crea configuración ni usa DPAPI; tampoco inicia audio, carga modelos ni realiza peticiones de red. Requiere una sesión local interactiva y una aplicación normal cerrada; no sustituye comprobar visualmente el icono ni pulsar físicamente el atajo durante la QA manual.
 
 `verify-ui.ps1` ejecuta localmente un ciclo WPF real y acotado de la ventana de configuración y del overlay protegido con texto fijo no sensible. Carga valores predeterminados desde una ruta temporal aislada que no existe y usa almacén de secretos y catálogo de dispositivos exclusivamente en memoria. Comprueba que los controles críticos se renderizan y exponen mediante UI Automation, que el consentimiento está oculto con Whisper local y visible con Gemini Audio, que el foco llega al resultado del overlay y que los dos ciclos se cierran y limpian. Omite el inicio normal: no usa DPAPI, audio real, red, modelos, sesiones ni configuración del usuario, y no deja la ruta temporal creada. Requiere una sesión local e interactiva y se rechaza en CI. Es una comprobación de contrato y renderizado; no sustituye la prueba manual de Narrator, alto contraste, DPI, capturas ni dispositivos reales.
+
+`verify-whisper-runtime.ps1` inicia exclusivamente la ruta diagnóstica del portable y obliga a cargar el runtime CPU x64 fijado. Comprueba arquitectura, selección del runtime y una llamada nativa inocua; no abre ni descarga modelos, no procesa audio, no lee configuración o DPAPI y no usa red. Se ejecuta automáticamente tras cada publicación, también en CI.
 
 `verify-wasapi.ps1` es una prueba diagnóstica explícita del dispositivo de salida predeterminado: captura tres segundos sólo en memoria, valida que el resultado sea WAV PCM mono de 16 kHz/16 bits y lo borra antes de salir. No usa red, modelo, configuración, API key ni crea archivos de audio. Sin opciones acepta silencio si llegaron muestras; si se está reproduciendo audio autorizado y se quiere exigir señal real, ejecuta `./Windows/verify-wasapi.ps1 -RequireAudibleSignal`. No se invoca desde CI ni desde `-ReleaseGate`, para no iniciar una captura sin una intención explícita del operador.
 

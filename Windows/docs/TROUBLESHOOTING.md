@@ -14,6 +14,10 @@ La instalación se realiza en `%USERPROFILE%\.dotnet` y no necesita Developer Mo
 
 Whisper local requiere Microsoft Visual C++ Redistributable 2015-2022 x64. Instala el paquete oficial de Microsoft y vuelve a ejecutar `Windows\preflight.ps1`.
 
+## El runtime Whisper CPU x64 no carga
+
+Ejecuta `Windows\verify-whisper-runtime.ps1`. Si falla, confirma que estás usando el portable completo y no sólo el `.exe`, que la carpeta `runtimes\win-x64` conserva sus cuatro DLL y que el Visual C++ Redistributable x64 pasa `Windows\preflight.ps1`. No copies DLL desde otra versión ni desde una arquitectura diferente; vuelve a publicar con `Windows\build.ps1` para restaurar el inventario fijado.
+
 ## El hotkey no funciona
 
 Otra aplicación puede haber registrado `Alt+Shift+L`. Cierra la aplicación en conflicto y reinicia MirrorPowerAI. El registro usa `MOD_NOREPEAT` para evitar repeticiones mientras se mantienen las teclas.

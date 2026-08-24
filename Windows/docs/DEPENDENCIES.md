@@ -21,3 +21,5 @@ Acciones CI fijadas:
 | gitleaks/gitleaks-action | v3.0.0 | `e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e` |
 
 No se incluye el modelo Whisper en el repositorio ni en artefactos. Su descarga y términos deben revisarse de forma independiente antes de una distribución pública.
+
+Cada publicación ejecuta `Windows\verify-whisper-runtime.ps1` contra el propio portable. La comprobación fuerza el runtime CPU x64, confirma que el cargador nativo y sus dependencias funcionan y no abre o descarga ningún modelo.

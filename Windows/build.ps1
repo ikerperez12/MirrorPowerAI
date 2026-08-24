@@ -48,6 +48,8 @@ if (-not $SkipPublish) {
         & (Join-Path $PSScriptRoot 'publish.ps1') -NoRestore
     }
 
+    & (Join-Path $PSScriptRoot 'verify-whisper-runtime.ps1')
+
     if ($ReleaseGate) {
         & (Join-Path $PSScriptRoot 'verify-overlay.ps1')
         & (Join-Path $PSScriptRoot 'verify-shell.ps1') -TimeoutSeconds 30

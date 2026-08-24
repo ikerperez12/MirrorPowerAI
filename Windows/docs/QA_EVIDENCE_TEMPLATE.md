@@ -19,6 +19,7 @@ Haz una copia local de esta plantilla dentro de `Windows\artifacts\qa-evidence\`
 
 | Comprobación | Comando | Resultado | Evidencia local no sensible |
 |---|---|---|---|
+| Runtime Whisper CPU x64 | `./Windows/verify-whisper-runtime.ps1` | Pendiente | |
 | Build y WDA | `./Windows/build.ps1 -ReleaseGate` | Pendiente | |
 | Inventario del portable | `./Windows/verify-provenance.ps1` | Pendiente | |
 | Bandeja, mutex y hotkey | `./Windows/verify-shell.ps1` | Pendiente | |

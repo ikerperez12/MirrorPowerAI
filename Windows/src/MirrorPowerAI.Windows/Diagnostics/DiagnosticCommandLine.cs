@@ -9,6 +9,7 @@ internal static class DiagnosticCommandLine
     private const string VerifyWasapiArgument = "--verify-wasapi";
     private const string VerifyShellArgument = "--verify-shell";
     private const string VerifyUiArgument = "--verify-ui";
+    private const string VerifyWhisperRuntimeArgument = "--verify-whisper-runtime";
     private const string RequireAudibleSignalArgument = "--require-audible-signal";
 
     /// <summary>
@@ -24,6 +25,7 @@ internal static class DiagnosticCommandLine
         var wasapiCount = 0;
         var shellCount = 0;
         var uiCount = 0;
+        var whisperRuntimeCount = 0;
         var audibleSignalCount = 0;
 
         foreach (var argument in arguments)
@@ -44,13 +46,17 @@ internal static class DiagnosticCommandLine
             {
                 uiCount++;
             }
+            else if (string.Equals(argument, VerifyWhisperRuntimeArgument, StringComparison.Ordinal))
+            {
+                whisperRuntimeCount++;
+            }
             else if (string.Equals(argument, RequireAudibleSignalArgument, StringComparison.Ordinal))
             {
                 audibleSignalCount++;
             }
         }
 
-        var diagnosticCount = overlayCount + wasapiCount + shellCount + uiCount;
+        var diagnosticCount = overlayCount + wasapiCount + shellCount + uiCount + whisperRuntimeCount;
         if (diagnosticCount == 0)
         {
             return audibleSignalCount == 0
@@ -68,13 +74,19 @@ internal static class DiagnosticCommandLine
             return new DiagnosticInvocation(DiagnosticKind.Wasapi, audibleSignalCount == 1);
         }
 
-        return audibleSignalCount == 0
-            ? new DiagnosticInvocation(
-                overlayCount == 1
-                    ? DiagnosticKind.Overlay
-                    : shellCount == 1 ? DiagnosticKind.Shell : DiagnosticKind.Ui,
-                RequireAudibleSignal: false)
-            : DiagnosticInvocation.Invalid;
+        if (audibleSignalCount != 0)
+        {
+            return DiagnosticInvocation.Invalid;
+        }
+
+        var kind = overlayCount == 1
+            ? DiagnosticKind.Overlay
+            : shellCount == 1
+                ? DiagnosticKind.Shell
+                : uiCount == 1
+                    ? DiagnosticKind.Ui
+                    : DiagnosticKind.WhisperRuntime;
+        return new DiagnosticInvocation(kind, RequireAudibleSignal: false);
     }
 }
 
@@ -97,6 +109,9 @@ internal enum DiagnosticKind
 
     /// <summary>Verifies one real WPF settings-and-overlay lifecycle without starting a user session.</summary>
     Ui,
+
+    /// <summary>Verifies that the pinned native CPU runtime can load in the published x64 process.</summary>
+    WhisperRuntime,
 
     /// <summary>The switches conflict or violate a diagnostic contract.</summary>
     Invalid,
