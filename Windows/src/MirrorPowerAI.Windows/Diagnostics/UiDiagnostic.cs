@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using MirrorPowerAI.Core.Security;
@@ -68,6 +69,12 @@ internal sealed class UiDiagnostic
             failure = UiDiagnosticContract.ValidateSettingsWindow(
                 settingsWindow,
                 expectCloudConsentVisible: false);
+            if (failure == UiDiagnosticFailure.None &&
+                !await AwaitSettingsFocusAsync(settingsWindow, operationToken))
+            {
+                failure = UiDiagnosticFailure.SettingsFocusMissing;
+            }
+
             if (failure == UiDiagnosticFailure.None)
             {
                 if (settingsWindow.FindName("ProviderBox") is not WpfComboBox providerBox)
@@ -223,6 +230,18 @@ internal sealed class UiDiagnostic
         ArgumentNullException.ThrowIfNull(window);
         return await AwaitConditionAsync(
             () => window.FindName("AnswerTextBox") is WpfTextBox answerBox && answerBox.IsKeyboardFocused,
+            cancellationToken);
+    }
+
+    private static async Task<bool> AwaitSettingsFocusAsync(MainWindow window, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        return await AwaitConditionAsync(
+            () => window.FindName("ApiKeyBox") is WpfPasswordBox apiKeyBox &&
+                (apiKeyBox.IsKeyboardFocused ||
+                 ReferenceEquals(
+                     FocusManager.GetFocusedElement(FocusManager.GetFocusScope(apiKeyBox)),
+                     apiKeyBox)),
             cancellationToken);
     }
 
@@ -613,6 +632,9 @@ internal enum UiDiagnosticFailure
 
     /// <summary>An unexpected non-sensitive failure occurred.</summary>
     UnexpectedFailure,
+
+    /// <summary>The settings window did not establish a deterministic initial focus target.</summary>
+    SettingsFocusMissing,
 }
 
 /// <summary>Contains the categorical result of a local settings-and-overlay lifecycle.</summary>
@@ -623,6 +645,6 @@ internal sealed record UiDiagnosticResult(UiDiagnosticFailure Failure)
     internal bool IsSuccessful => Failure == UiDiagnosticFailure.None;
 
     /// <summary>Maps a categorical, non-sensitive result to a bounded process exit code.</summary>
-    /// <returns>Zero on success; otherwise a code in the 11–26 range that reveals no UI content.</returns>
+    /// <returns>Zero on success; otherwise a code in the 11–27 range that reveals no UI content.</returns>
     internal int ToProcessExitCode() => IsSuccessful ? 0 : 10 + (int)Failure;
 }

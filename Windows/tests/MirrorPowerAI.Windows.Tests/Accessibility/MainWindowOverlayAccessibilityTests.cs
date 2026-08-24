@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
+using System.Windows.Input;
 using System.Windows.Threading;
 using MirrorPowerAI.Core.Security;
 using MirrorPowerAI.Windows.Audio;
@@ -13,6 +14,7 @@ using MirrorPowerAI.Windows.Tests.Platform;
 using MirrorPowerAI.Windows.UI;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 using WpfTextBox = System.Windows.Controls.TextBox;
+using WpfPasswordBox = System.Windows.Controls.PasswordBox;
 
 namespace MirrorPowerAI.Windows.Tests.Accessibility;
 
@@ -59,9 +61,28 @@ public sealed class MainWindowOverlayAccessibilityTests
 
                 window.Show();
                 await announced.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                await window.Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
                 Assert.True(window.IsVisible);
                 Assert.Equal(1, announcements);
                 Assert.False(status.IsKeyboardFocused);
+                var apiKeyBox = GetPasswordBox(window, "ApiKeyBox");
+                Assert.True(
+                    apiKeyBox.IsKeyboardFocused ||
+                    ReferenceEquals(
+                        FocusManager.GetFocusedElement(FocusManager.GetFocusScope(apiKeyBox)),
+                        apiKeyBox));
+
+                var contextBox = GetTextBox(window, "ContextBox");
+                FocusManager.SetFocusedElement(FocusManager.GetFocusScope(contextBox), contextBox);
+                _ = contextBox.Focus();
+                window.Hide();
+                window.Show();
+                await window.Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
+                Assert.True(
+                    apiKeyBox.IsKeyboardFocused ||
+                    ReferenceEquals(
+                        FocusManager.GetFocusedElement(FocusManager.GetFocusScope(apiKeyBox)),
+                        apiKeyBox));
 
                 window.Activate();
                 await window.Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
@@ -136,6 +157,12 @@ public sealed class MainWindowOverlayAccessibilityTests
 
     private static WpfTextBox GetTextBox(OverlayWindow window, string name) =>
         Assert.IsType<WpfTextBox>(window.FindName(name));
+
+    private static WpfTextBox GetTextBox(MainWindow window, string name) =>
+        Assert.IsType<WpfTextBox>(window.FindName(name));
+
+    private static WpfPasswordBox GetPasswordBox(MainWindow window, string name) =>
+        Assert.IsType<WpfPasswordBox>(window.FindName(name));
 
     private static string GetAutomationName(WpfTextBox textBox)
     {

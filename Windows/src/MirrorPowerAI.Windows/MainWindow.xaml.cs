@@ -7,6 +7,7 @@ using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Input;
 using System.Windows.Threading;
 using MirrorPowerAI.Core.Privacy;
 using MirrorPowerAI.Core.Security;
@@ -45,6 +46,8 @@ public partial class MainWindow : Window
     private bool _contextWasRead;
     private bool _statusAnnouncementPending;
     private bool _statusAnnouncementScheduled;
+    private bool _initialFocusScheduled;
+    private bool _initialFocusPending = true;
     private bool _isPositioningBeforeShow;
     private bool _persistedSettingsLoaded;
     private AppSettings _persistedSettings = new();
@@ -89,8 +92,10 @@ public partial class MainWindow : Window
     /// </remarks>
     public new void Show()
     {
+        _initialFocusPending = true;
         PositionBeforeShow();
         base.Show();
+        ScheduleInitialFocus();
     }
 
     /// <summary>
@@ -456,9 +461,44 @@ public partial class MainWindow : Window
         ScheduleStatusAnnouncement();
     }
 
-    private void OnContentRendered(object? sender, EventArgs eventArgs) => ScheduleStatusAnnouncement();
+    private void OnContentRendered(object? sender, EventArgs eventArgs)
+    {
+        ScheduleStatusAnnouncement();
+        ScheduleInitialFocus();
+    }
 
-    private void OnWindowActivated(object? sender, EventArgs eventArgs) => ScheduleStatusAnnouncement();
+    private void OnWindowActivated(object? sender, EventArgs eventArgs)
+    {
+        ScheduleStatusAnnouncement();
+        ScheduleInitialFocus();
+    }
+
+    private void ScheduleInitialFocus()
+    {
+        if (!_initialFocusPending ||
+            _initialFocusScheduled ||
+            !IsVisible ||
+            Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        _initialFocusScheduled = true;
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(FocusInitialControlWhenVisible));
+    }
+
+    private void FocusInitialControlWhenVisible()
+    {
+        _initialFocusScheduled = false;
+        if (IsVisible &&
+            ApiKeyBox.IsVisible &&
+            ApiKeyBox.IsEnabled)
+        {
+            FocusManager.SetFocusedElement(FocusManager.GetFocusScope(ApiKeyBox), ApiKeyBox);
+            _ = ApiKeyBox.Focus();
+            _initialFocusPending = false;
+        }
+    }
 
     private void ScheduleStatusAnnouncement()
     {
