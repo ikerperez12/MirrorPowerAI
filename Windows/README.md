@@ -78,7 +78,7 @@ Comandos parciales:
 2. En la bandeja, abre **Configuración**.
 3. Introduce la API key de Gemini. Se protege con DPAPI para el usuario actual.
 4. Revisa el contexto del proyecto, idioma y dispositivo.
-5. Mantén **Whisper local** para máxima privacidad o selecciona **Gemini Audio** y acepta el consentimiento de nube.
+5. Mantén **Whisper local** para máxima privacidad o selecciona **Gemini Audio**, acepta el consentimiento de nube y guarda la configuración. Por privacidad, Gemini Audio vuelve a quedar bloqueado al reiniciar la aplicación hasta que confirmes y guardes esa elección de nuevo.
 6. Pulsa `Alt+Shift+L` para iniciar la captura y vuelve a pulsarlo para detenerla.
 
 La primera transcripción local descarga el modelo fijado:
@@ -93,7 +93,7 @@ El modelo sólo se activa después de verificar tamaño y hash. Una descarga inc
 ## Privacidad
 
 - `LocalWhisper`: el audio y la transcripción permanecen en el equipo; únicamente la pregunta transcrita y el contexto se envían a Gemini para producir la respuesta.
-- `GeminiAudio`: el WAV capturado se envía a Gemini para transcribirlo, tras consentimiento explícito; después se realiza la misma petición textual de respuesta.
+- `GeminiAudio`: el WAV capturado se envía a Gemini para transcribirlo sólo tras un consentimiento explícito guardado correctamente en el proceso actual; después se realiza la misma petición textual de respuesta. El consentimiento guardado conserva el historial de aceptación, pero no reactiva la subida tras reiniciar la aplicación.
 - No existe fallback automático de local a nube.
 - Audio, transcripciones y respuestas viven en memoria y no se guardan como historial.
 - La API key se protege con DPAPI `CurrentUser`; la configuración no sensible se guarda en `%LOCALAPPDATA%\MirrorPowerAI`.

@@ -33,10 +33,12 @@ public partial class MainWindow : Window
     /// <summary>Stable secret-store key for the project context.</summary>
     public const string ProjectContextSecretName = "project-context";
 
-    private readonly JsonSettingsStore _settingsStore;
+    private readonly IAppSettingsStore _settingsStore;
     private readonly ISecretStore _secretStore;
     private readonly IAudioDeviceCatalog _audioDeviceCatalog;
     private readonly LocalizationService _localization;
+    private readonly IGeminiAudioConsentGate _geminiAudioConsentGate;
+    private readonly bool _ownsGeminiAudioConsentGate;
     private bool _allowClose;
     private bool _isLoading;
     private bool _apiKeyWasRead;
@@ -55,16 +57,20 @@ public partial class MainWindow : Window
     /// <param name="secretStore">DPAPI-backed secret store.</param>
     /// <param name="audioDeviceCatalog">Available output-device source.</param>
     /// <param name="localization">Live localized string source.</param>
+    /// <param name="geminiAudioConsentGate">Shared process-level fail-closed Gemini Audio privacy barrier.</param>
     public MainWindow(
-        JsonSettingsStore settingsStore,
+        IAppSettingsStore settingsStore,
         ISecretStore secretStore,
         IAudioDeviceCatalog audioDeviceCatalog,
-        LocalizationService localization)
+        LocalizationService localization,
+        IGeminiAudioConsentGate? geminiAudioConsentGate = null)
     {
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
         _secretStore = secretStore ?? throw new ArgumentNullException(nameof(secretStore));
         _audioDeviceCatalog = audioDeviceCatalog ?? throw new ArgumentNullException(nameof(audioDeviceCatalog));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
+        _geminiAudioConsentGate = geminiAudioConsentGate ?? new GeminiAudioConsentGate();
+        _ownsGeminiAudioConsentGate = geminiAudioConsentGate is null;
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
         ContentRendered += OnContentRendered;
@@ -342,6 +348,14 @@ public partial class MainWindow : Window
         HideStatus();
         var provider = ProviderBox.SelectedValue as string ?? TranscriptionProviders.LocalWhisper;
         var hasCloudConsent = CloudConsentBox.IsChecked == true;
+        var hasExplicitCloudConsent = provider == TranscriptionProviders.GeminiAudio && hasCloudConsent;
+        if (!hasExplicitCloudConsent)
+        {
+            // Revocation is effective before any further storage operation. If persistence subsequently
+            // fails, existing and future in-process services must still be unable to upload audio.
+            _geminiAudioConsentGate.Revoke();
+        }
+
         if (provider == TranscriptionProviders.GeminiAudio && !hasCloudConsent)
         {
             ShowStatus(_localization["ConsentRequired"], isError: true);
@@ -389,6 +403,13 @@ public partial class MainWindow : Window
             await _settingsStore.SaveAsync(settings);
             _persistedSettings = settings with { Context = string.Empty };
             _persistedSettingsLoaded = true;
+            if (hasExplicitCloudConsent)
+            {
+                // Do not reopen the cloud path until every preceding storage mutation, including the
+                // versioned consent in settings.json, has completed successfully.
+                _geminiAudioConsentGate.AllowAfterSuccessfulExplicitConsentSave();
+            }
+
             _localization.SetLanguage(settings.Language);
             var deviceOptions = (DeviceBox.ItemsSource as IEnumerable<AudioDeviceOption>)?.ToList() ?? [];
             PopulateProviderOptions(settings.TranscriptionProvider);
@@ -489,6 +510,17 @@ public partial class MainWindow : Window
 
         eventArgs.Cancel = true;
         Hide();
+    }
+
+    /// <inheritdoc />
+    protected override void OnClosed(EventArgs e)
+    {
+        if (_ownsGeminiAudioConsentGate && _geminiAudioConsentGate is IDisposable disposableGate)
+        {
+            disposableGate.Dispose();
+        }
+
+        base.OnClosed(e);
     }
 
     private sealed record LocalizedOption(string Id, string DisplayName);

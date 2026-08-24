@@ -8,6 +8,19 @@ namespace MirrorPowerAI.Core.Privacy;
 public sealed record GeminiAudioConsent(int Version, DateTimeOffset GrantedAtUtc);
 
 /// <summary>
+/// Captures one in-process authorization to upload audio to Gemini.
+/// </summary>
+/// <remarks>
+/// The revocation token is owned by the platform shell. It is cancelled when the user withdraws
+/// consent so an upload that is still preparing can be stopped before it reaches the network.
+/// </remarks>
+/// <param name="Consent">The current, versioned consent associated with this authorization.</param>
+/// <param name="RevocationToken">A token cancelled when this authorization is withdrawn.</param>
+public sealed record GeminiAudioUploadAuthorization(
+    GeminiAudioConsent Consent,
+    CancellationToken RevocationToken);
+
+/// <summary>
 /// Creates and validates versioned consent for Gemini audio transcription.
 /// </summary>
 public static class GeminiAudioConsentPolicy

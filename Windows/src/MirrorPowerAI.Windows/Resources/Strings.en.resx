@@ -61,7 +61,7 @@
   <data name="DeviceLabel" xml:space="preserve"><value>Output device</value></data>
   <data name="DefaultAudioDevice" xml:space="preserve"><value>Windows default output device</value></data>
   <data name="CloudConsentLabel" xml:space="preserve"><value>Gemini Audio consent</value></data>
-  <data name="CloudConsentText" xml:space="preserve"><value>I agree to send the recording to Google Gemini only when I choose Gemini Audio. There will be no automatic switch from local Whisper.</value></data>
+  <data name="CloudConsentText" xml:space="preserve"><value>I agree to send the recording to Google Gemini only when I choose Gemini Audio. When the app starts, Gemini Audio stays blocked until I save this choice again. There will be no automatic switch from local Whisper.</value></data>
   <data name="SaveButton" xml:space="preserve"><value>Save</value></data>
   <data name="CancelButton" xml:space="preserve"><value>Cancel</value></data>
   <data name="SettingsSaved" xml:space="preserve"><value>Settings saved.</value></data>

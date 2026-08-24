@@ -45,6 +45,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 - [ ] Español con Whisper local offline.
 - [ ] Inglés con Whisper local y detección automática.
 - [ ] Gemini Audio exige consentimiento.
+- [ ] Tras reiniciar la aplicación, Gemini Audio sigue bloqueado hasta que se confirma y guarda de nuevo el consentimiento.
 - [ ] Retirar consentimiento impide nuevas subidas.
 - [ ] Sin API key.
 - [ ] Sin red.

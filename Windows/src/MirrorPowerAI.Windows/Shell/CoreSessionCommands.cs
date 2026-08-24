@@ -17,11 +17,13 @@ namespace MirrorPowerAI.Windows.Shell;
 /// </summary>
 public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
 {
-    private readonly JsonSettingsStore _settingsStore;
+    private readonly IAppSettingsStore _settingsStore;
     private readonly ISecretStore _secretStore;
     private readonly WhisperLocalTranscriptionService _localTranscriptionService;
     private readonly GeminiClient _geminiClient;
     private readonly IAnswerService _answerService;
+    private readonly IGeminiAudioConsentGate _geminiAudioConsentGate;
+    private readonly bool _ownsGeminiAudioConsentGate;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private SessionSnapshot _snapshot = new(ShellActivityState.Idle);
     private SessionController? _controller;
@@ -33,17 +35,21 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
     /// <param name="secretStore">DPAPI-protected key and context storage.</param>
     /// <param name="localTranscriptionService">Long-lived local Whisper adapter.</param>
     /// <param name="geminiClient">Long-lived typed Gemini client.</param>
+    /// <param name="geminiAudioConsentGate">Shared process-level fail-closed Gemini Audio privacy barrier.</param>
     public CoreSessionCommands(
-        JsonSettingsStore settingsStore,
+        IAppSettingsStore settingsStore,
         ISecretStore secretStore,
         WhisperLocalTranscriptionService localTranscriptionService,
-        GeminiClient geminiClient)
+        GeminiClient geminiClient,
+        IGeminiAudioConsentGate? geminiAudioConsentGate = null)
     {
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
         _secretStore = secretStore ?? throw new ArgumentNullException(nameof(secretStore));
         _localTranscriptionService = localTranscriptionService ??
             throw new ArgumentNullException(nameof(localTranscriptionService));
         _geminiClient = geminiClient ?? throw new ArgumentNullException(nameof(geminiClient));
+        _geminiAudioConsentGate = geminiAudioConsentGate ?? new GeminiAudioConsentGate();
+        _ownsGeminiAudioConsentGate = geminiAudioConsentGate is null;
         _answerService = new GeminiAnswerService(_geminiClient);
     }
 
@@ -141,6 +147,11 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
         }
         finally
         {
+            if (_ownsGeminiAudioConsentGate && _geminiAudioConsentGate is IDisposable disposableGate)
+            {
+                disposableGate.Dispose();
+            }
+
             _lifecycleGate.Release();
             _lifecycleGate.Dispose();
         }
@@ -160,7 +171,10 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
         }).Normalize();
         var options = settings.ToCoreOptions();
         var consent = CreateConsent(settings);
-        var geminiTranscription = new GeminiAudioTranscriptionService(_geminiClient, () => consent);
+        var geminiTranscription = new GeminiAudioTranscriptionService(
+            _geminiClient,
+            () => consent,
+            () => _geminiAudioConsentGate.TryAuthorize(consent));
         var audioCapture = CreateAudioCapture(options.OutputDeviceId);
         var controller = new SessionController(
             audioCapture,

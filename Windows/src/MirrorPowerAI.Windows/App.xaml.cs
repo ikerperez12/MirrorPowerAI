@@ -33,6 +33,7 @@ public partial class App : System.Windows.Application, IDisposable
     private HttpClient? _geminiHttpClient;
     private HttpClient? _modelHttpClient;
     private WhisperModelManager? _modelManager;
+    private GeminiAudioConsentGate? _geminiAudioConsentGate;
     private readonly SemaphoreSlim _privacyTransitionGate = new(1, 1);
     private int _toggleInProgress;
     private int _privacyTransitionsPending;
@@ -93,14 +94,25 @@ public partial class App : System.Windows.Application, IDisposable
         var initialSettings = settingsStore.LoadAsync().GetAwaiter().GetResult();
         localization.SetLanguage(initialSettings.Language);
         var secretStore = new DpapiSecretStore();
+        var geminiAudioConsentGate = new GeminiAudioConsentGate();
+        _geminiAudioConsentGate = geminiAudioConsentGate;
         var audioDevices = new NAudioDeviceCatalog(
             new NAudioEndpointProvider(),
             localization["DefaultAudioDevice"]);
 
-        _settingsWindow = new MainWindow(settingsStore, secretStore, audioDevices, localization);
+        _settingsWindow = new MainWindow(
+            settingsStore,
+            secretStore,
+            audioDevices,
+            localization,
+            geminiAudioConsentGate);
         _settingsWindow.SettingsSaved += OnSettingsSaved;
         _overlayPresenter = new OverlayPresenter(new OverlayProtectionService());
-        _sessionCommands = CreateSessionCommands(settingsStore, secretStore, initialSettings);
+        _sessionCommands = CreateSessionCommands(
+            settingsStore,
+            secretStore,
+            initialSettings,
+            geminiAudioConsentGate);
         _sessionCommands.StateChanged += OnSessionStateChanged;
         var trayIcon = new TrayIconService(localization);
         _trayIcon = trayIcon;
@@ -244,11 +256,13 @@ public partial class App : System.Windows.Application, IDisposable
     /// <param name="settingsStore">Bounded non-secret settings storage.</param>
     /// <param name="secretStore">DPAPI-protected key and context storage.</param>
     /// <param name="initialSettings">Normalized non-secret settings loaded during startup.</param>
+    /// <param name="geminiAudioConsentGate">Shared process-level fail-closed Gemini Audio privacy barrier.</param>
     /// <returns>A session command adapter.</returns>
     private CoreSessionCommands CreateSessionCommands(
-        JsonSettingsStore settingsStore,
+        IAppSettingsStore settingsStore,
         DpapiSecretStore secretStore,
-        AppSettings initialSettings)
+        AppSettings initialSettings,
+        IGeminiAudioConsentGate geminiAudioConsentGate)
     {
         _modelHttpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _modelManager = new WhisperModelManager(_modelHttpClient, WhisperModelDescriptor.DefaultBase);
@@ -264,7 +278,12 @@ public partial class App : System.Windows.Application, IDisposable
             _geminiHttpClient,
             apiKeyProvider,
             CreateGeminiClientOptions(initialSettings));
-        return new CoreSessionCommands(settingsStore, secretStore, localTranscription, geminiClient);
+        return new CoreSessionCommands(
+            settingsStore,
+            secretStore,
+            localTranscription,
+            geminiClient,
+            geminiAudioConsentGate);
     }
 
     /// <summary>
@@ -611,6 +630,7 @@ public partial class App : System.Windows.Application, IDisposable
             () => _modelManager?.Dispose(),
             () => _modelHttpClient?.Dispose(),
             () => _geminiHttpClient?.Dispose(),
+            () => _geminiAudioConsentGate?.Dispose(),
             () => _lifetimeCancellation.Dispose(),
             () =>
             {

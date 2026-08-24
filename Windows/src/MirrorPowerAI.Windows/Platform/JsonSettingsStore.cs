@@ -4,9 +4,34 @@ using System.Text.Json;
 namespace MirrorPowerAI.Windows.Platform;
 
 /// <summary>
+/// Loads and saves bounded, non-secret application settings.
+/// </summary>
+/// <remarks>
+/// This boundary lets the settings UI preserve its privacy guarantees when local storage fails,
+/// without coupling those decisions to a particular file implementation.
+/// </remarks>
+public interface IAppSettingsStore
+{
+    /// <summary>
+    /// Loads normalized settings or a safe default when no usable persisted value is available.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels the storage operation.</param>
+    /// <returns>The normalized settings value.</returns>
+    Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Persists normalized non-secret settings.
+    /// </summary>
+    /// <param name="settings">The settings value to persist.</param>
+    /// <param name="cancellationToken">Cancels the storage operation.</param>
+    /// <returns>A task that completes once the replacement is durable.</returns>
+    Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Persists non-secret settings as bounded JSON under the current user's local application data.
 /// </summary>
-public sealed class JsonSettingsStore
+public sealed class JsonSettingsStore : IAppSettingsStore
 {
     /// <summary>Maximum accepted JSON size, protecting startup from manipulated local files.</summary>
     public const long MaximumSettingsFileBytes = 64 * 1024;

@@ -104,6 +104,7 @@ public sealed class GeminiClient
     {
         ArgumentNullException.ThrowIfNull(audio);
         ArgumentException.ThrowIfNullOrWhiteSpace(language);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (language.Length > 35 || language.Any(char.IsControl))
         {
@@ -151,7 +152,9 @@ public sealed class GeminiClient
         GeminiGenerateContentRequest payload,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var apiKey = (await _apiKeyProvider.GetApiKeyAsync(cancellationToken).ConfigureAwait(false))?.Trim();
+        cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(apiKey) ||
             apiKey.Length > 512 ||
             apiKey.Any(char.IsControl))
@@ -167,6 +170,7 @@ public sealed class GeminiClient
 
         using var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         requestCancellation.CancelAfter(_options.RequestTimeout);
+        requestCancellation.Token.ThrowIfCancellationRequested();
 
         try
         {

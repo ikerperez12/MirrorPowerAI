@@ -10,7 +10,7 @@
 
 ## GeminiAudio (opt-in)
 
-1. La aplicación exige un consentimiento versionado y revocable.
+1. La aplicación exige un consentimiento versionado y revocable. Cada proceso comienza con Gemini Audio bloqueado: la aceptación guardada se conserva como historial, pero el usuario debe confirmar y guardar de nuevo la elección Gemini Audio para habilitar una subida en ese proceso.
 2. El WAV se envía a Gemini sólo para transcripción; el contexto del proyecto no forma parte de esa petición.
 3. La transcripción resultante y el contexto se envían en una petición textual separada para generar la respuesta.
 4. No se cambia a este proveedor automáticamente cuando Whisper falla.
