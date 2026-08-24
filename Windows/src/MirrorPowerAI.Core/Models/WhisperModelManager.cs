@@ -34,6 +34,21 @@ public sealed class WhisperModelManager : IDisposable
         string modelDirectory,
         CancellationToken cancellationToken = default)
     {
+        using var lease = await AcquireVerifiedLeaseAsync(modelDirectory, cancellationToken)
+            .ConfigureAwait(false);
+        return lease.ModelPath;
+    }
+
+    /// <summary>
+    /// Acquires a verified model and holds a read-only sharing lock until the returned lease is disposed.
+    /// </summary>
+    /// <param name="modelDirectory">The application-owned model directory.</param>
+    /// <param name="cancellationToken">A token used to cancel verification or download.</param>
+    /// <returns>A lease that prevents replacement or deletion of the verified model during inference.</returns>
+    public async Task<WhisperModelLease> AcquireVerifiedLeaseAsync(
+        string modelDirectory,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(modelDirectory);
 
         var directory = Path.GetFullPath(modelDirectory);
@@ -43,9 +58,11 @@ public sealed class WhisperModelManager : IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (await IsValidAsync(targetPath, cancellationToken).ConfigureAwait(false))
+            var existingLease = await TryAcquireVerifiedLeaseAsync(targetPath, cancellationToken)
+                .ConfigureAwait(false);
+            if (existingLease is not null)
             {
-                return targetPath;
+                return existingLease;
             }
 
             var temporaryPath = Path.Combine(
@@ -56,7 +73,12 @@ public sealed class WhisperModelManager : IDisposable
             {
                 await DownloadAndVerifyAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
                 File.Move(temporaryPath, targetPath, overwrite: true);
-                return targetPath;
+
+                var downloadedLease = await TryAcquireVerifiedLeaseAsync(targetPath, cancellationToken)
+                    .ConfigureAwait(false);
+                return downloadedLease ?? throw new WhisperModelException(
+                    WhisperModelErrorKind.HashMismatch,
+                    "El modelo Whisper activado no superó la verificación de integridad final.");
             }
             finally
             {
@@ -82,21 +104,8 @@ public sealed class WhisperModelManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var file = new FileInfo(path);
-        if (!file.Exists || file.Length != _descriptor.ExpectedSize)
-        {
-            return false;
-        }
-
-        await using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: 64 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
-        return string.Equals(Convert.ToHexStringLower(hash), _descriptor.Sha256, StringComparison.Ordinal);
+        using var lease = await TryAcquireVerifiedLeaseAsync(path, cancellationToken).ConfigureAwait(false);
+        return lease is not null;
     }
 
     /// <summary>
@@ -186,6 +195,53 @@ public sealed class WhisperModelManager : IDisposable
             throw new WhisperModelException(
                 WhisperModelErrorKind.HashMismatch,
                 "El SHA-256 del modelo Whisper descargado no coincide con el valor fijado.");
+        }
+    }
+
+    private async Task<WhisperModelLease?> TryAcquireVerifiedLeaseAsync(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        FileStream? stream = null;
+        try
+        {
+            try
+            {
+                stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
+                    bufferSize: 64 * 1024,
+                    FileOptions.Asynchronous | FileOptions.SequentialScan);
+            }
+            catch (FileNotFoundException)
+            {
+                return null;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return null;
+            }
+
+            if (stream.Length != _descriptor.ExpectedSize)
+            {
+                return null;
+            }
+
+            var hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(Convert.ToHexStringLower(hash), _descriptor.Sha256, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var lease = new WhisperModelLease(path, stream);
+            stream = null;
+            return lease;
+        }
+        finally
+        {
+            stream?.Dispose();
         }
     }
 }

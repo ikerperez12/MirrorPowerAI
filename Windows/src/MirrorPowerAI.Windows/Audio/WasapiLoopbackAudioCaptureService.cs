@@ -14,6 +14,7 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
 
     private const long DefaultMaximumRawBytes = 512L * 1024 * 1024;
     private static readonly TimeSpan DefaultEndpointPollInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan DefaultStopCompletionTimeout = TimeSpan.FromSeconds(5);
 
     private readonly IAudioEndpointProvider _endpointProvider;
     private readonly ILoopbackCaptureSessionFactory _sessionFactory;
@@ -23,6 +24,8 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
     private readonly TimeSpan _maximumDuration;
     private readonly TimeSpan _endpointPollInterval;
     private readonly long _maximumRawBytes;
+    private readonly TimeSpan _stopCompletionTimeout;
+    private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private CaptureContext? _activeCapture;
     private int _disposed;
@@ -54,6 +57,10 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
     /// <param name="maximumDuration">Capture duration, capped at five minutes.</param>
     /// <param name="endpointPollInterval">Endpoint health polling interval.</param>
     /// <param name="maximumRawBytes">Additional hard bound for unusual high-bandwidth endpoint formats.</param>
+    /// <param name="stopCompletionTimeout">
+    /// Maximum time to wait after requesting native capture teardown, capped at the production default.
+    /// </param>
+    /// <param name="timeProvider">Monotonic clock used to enforce the capture deadline.</param>
     public WasapiLoopbackAudioCaptureService(
         IAudioEndpointProvider endpointProvider,
         ILoopbackCaptureSessionFactory sessionFactory,
@@ -62,7 +69,9 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
         string? requestedDeviceId = null,
         TimeSpan? maximumDuration = null,
         TimeSpan? endpointPollInterval = null,
-        long maximumRawBytes = DefaultMaximumRawBytes)
+        long maximumRawBytes = DefaultMaximumRawBytes,
+        TimeSpan? stopCompletionTimeout = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(endpointProvider);
         ArgumentNullException.ThrowIfNull(sessionFactory);
@@ -83,6 +92,13 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
 
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumRawBytes, 1);
 
+        var effectiveStopCompletionTimeout = stopCompletionTimeout ?? DefaultStopCompletionTimeout;
+        if (effectiveStopCompletionTimeout <= TimeSpan.Zero ||
+            effectiveStopCompletionTimeout > DefaultStopCompletionTimeout)
+        {
+            throw new ArgumentOutOfRangeException(nameof(stopCompletionTimeout));
+        }
+
         _endpointProvider = endpointProvider;
         _sessionFactory = sessionFactory;
         _converter = converter;
@@ -93,6 +109,8 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
         _maximumDuration = effectiveDuration;
         _endpointPollInterval = effectivePollInterval;
         _maximumRawBytes = maximumRawBytes;
+        _stopCompletionTimeout = effectiveStopCompletionTimeout;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -182,7 +200,7 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
             try
             {
                 backendError = await context.Stopped.Task
-                    .WaitAsync(cancellationToken)
+                    .WaitAsync(_stopCompletionTimeout, cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -191,13 +209,17 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
                 try
                 {
                     backendError = await context.Stopped.Task
-                        .WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None)
+                        .WaitAsync(_stopCompletionTimeout, CancellationToken.None)
                         .ConfigureAwait(false);
                 }
                 catch (TimeoutException exception)
                 {
                     backendError = exception;
                 }
+            }
+            catch (TimeoutException exception)
+            {
+                backendError = exception;
             }
 
             stopReason = context.StopReason;
@@ -302,18 +324,32 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
 
     private async Task WatchCaptureAsync(CaptureContext context)
     {
-        var elapsed = TimeSpan.Zero;
+        var captureStartedAt = _timeProvider.GetTimestamp();
         try
         {
-            while (elapsed < _maximumDuration)
+            while (true)
             {
+                var elapsed = _timeProvider.GetElapsedTime(captureStartedAt);
                 var remaining = _maximumDuration - elapsed;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    context.TrySetStopReason(CaptureStopReason.MaximumDuration);
+                    context.Session.RequestStop();
+                    return;
+                }
+
                 var delay = remaining < _endpointPollInterval
                     ? remaining
                     : _endpointPollInterval;
                 await _timer.DelayAsync(delay, context.WatchdogCancellation.Token)
                     .ConfigureAwait(false);
-                elapsed += delay;
+
+                if (_timeProvider.GetElapsedTime(captureStartedAt) >= _maximumDuration)
+                {
+                    context.TrySetStopReason(CaptureStopReason.MaximumDuration);
+                    context.Session.RequestStop();
+                    return;
+                }
 
                 if (!_endpointProvider.IsEndpointActive(context.Endpoint.Id))
                 {
@@ -330,9 +366,6 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
                     return;
                 }
             }
-
-            context.TrySetStopReason(CaptureStopReason.MaximumDuration);
-            context.Session.RequestStop();
         }
         catch (OperationCanceledException) when (context.WatchdogCancellation.IsCancellationRequested)
         {

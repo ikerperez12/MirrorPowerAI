@@ -41,8 +41,8 @@ internal static class BenchmarkCommand
             httpClient,
             descriptor);
         var modelStopwatch = Stopwatch.StartNew();
-        var modelPath = await modelManager
-            .EnsureAvailableAsync(options.ModelDirectory, cancellationToken)
+        using var modelLease = await modelManager
+            .AcquireVerifiedLeaseAsync(options.ModelDirectory, cancellationToken)
             .ConfigureAwait(false);
         modelStopwatch.Stop();
 
@@ -50,7 +50,7 @@ internal static class BenchmarkCommand
         await output.FlushAsync(cancellationToken).ConfigureAwait(false);
         var whisperResult = await WhisperBenchmarkRunner
             .RunAsync(
-                modelPath,
+                modelLease.ModelPath,
                 wave.Stream,
                 options.Language,
                 options.ThreadCount,

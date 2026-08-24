@@ -42,10 +42,12 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
     {
         // Arrange
         var session = new FakeLoopbackCaptureSession(TestFormat, AudiblePcm16(1_600));
+        var clock = new ManualTimeProvider();
         await using var service = CreateService(
             session,
-            timer: new ImmediateCaptureTimer(),
-            maximumDuration: TimeSpan.FromSeconds(2));
+            timer: new ImmediateCaptureTimer(clock),
+            maximumDuration: TimeSpan.FromSeconds(2),
+            timeProvider: clock);
 
         // Act
         await service.StartAsync();
@@ -62,11 +64,13 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
         // Arrange
         var endpointProvider = new FakeEndpointProvider { IsDefault = false };
         var session = new FakeLoopbackCaptureSession(TestFormat, AudiblePcm16(1_600));
+        var clock = new ManualTimeProvider();
         await using var service = CreateService(
             session,
             endpointProvider,
-            new ImmediateCaptureTimer(),
-            TimeSpan.FromSeconds(2));
+            new ImmediateCaptureTimer(clock),
+            TimeSpan.FromSeconds(2),
+            timeProvider: clock);
 
         // Act
         await service.StartAsync();
@@ -82,11 +86,13 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
         // Arrange
         var endpointProvider = new FakeEndpointProvider { Active = false };
         var session = new FakeLoopbackCaptureSession(TestFormat, AudiblePcm16(1_600));
+        var clock = new ManualTimeProvider();
         await using var service = CreateService(
             session,
             endpointProvider,
-            new ImmediateCaptureTimer(),
-            TimeSpan.FromSeconds(2));
+            new ImmediateCaptureTimer(clock),
+            TimeSpan.FromSeconds(2),
+            timeProvider: clock);
 
         // Act
         await service.StartAsync();
@@ -155,6 +161,28 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
     }
 
     [Fact]
+    public async Task StopAsync_BackendNeverSignalsStop_TimesOutAndReleasesSession()
+    {
+        // Arrange
+        var session = new FakeLoopbackCaptureSession(
+            TestFormat,
+            AudiblePcm16(1_600),
+            suppressStopCompletion: true);
+        await using var service = CreateService(
+            session,
+            stopCompletionTimeout: TimeSpan.FromMilliseconds(10));
+        await service.StartAsync();
+
+        // Act
+        var exception = await Assert.ThrowsAsync<AudioCaptureException>(() => service.StopAsync());
+
+        // Assert
+        Assert.Equal(AudioCaptureFailure.BackendFailure, exception.Failure);
+        Assert.False(service.IsCapturing);
+        Assert.True(session.WasDisposed);
+    }
+
+    [Fact]
     public void Constructor_DurationOverFiveMinutes_RejectsConfiguration()
     {
         // Arrange
@@ -171,7 +199,9 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
         FakeEndpointProvider? endpointProvider = null,
         ICaptureTimer? timer = null,
         TimeSpan? maximumDuration = null,
-        long maximumRawBytes = 1024 * 1024) =>
+        long maximumRawBytes = 1024 * 1024,
+        TimeSpan? stopCompletionTimeout = null,
+        TimeProvider? timeProvider = null) =>
         new(
             endpointProvider ?? new FakeEndpointProvider(),
             new FakeLoopbackCaptureSessionFactory(session),
@@ -180,7 +210,9 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
             requestedDeviceId: null,
             maximumDuration: maximumDuration ?? TimeSpan.FromMinutes(5),
             endpointPollInterval: TimeSpan.FromSeconds(1),
-            maximumRawBytes: maximumRawBytes);
+            maximumRawBytes: maximumRawBytes,
+            stopCompletionTimeout: stopCompletionTimeout,
+            timeProvider: timeProvider);
 
     private static int ReadWaveSampleRate(ReadOnlySpan<byte> wave) =>
         System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(wave[24..28]);
@@ -225,7 +257,8 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
         AudioSampleFormat sourceFormat,
         byte[] initialData,
         Exception? stopError = null,
-        TimeSpan? stopCompletionDelay = null) : ILoopbackCaptureSession
+        TimeSpan? stopCompletionDelay = null,
+        bool suppressStopCompletion = false) : ILoopbackCaptureSession
     {
         private int _stopped;
 
@@ -250,6 +283,11 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
         public void RequestStop()
         {
             StopRequestCount++;
+            if (suppressStopCompletion)
+            {
+                return;
+            }
+
             if (stopCompletionDelay is { } delay && delay > TimeSpan.Zero)
             {
                 _ = CompleteAfterDelayAsync(delay);
@@ -279,11 +317,12 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
         }
     }
 
-    private sealed class ImmediateCaptureTimer : ICaptureTimer
+    private sealed class ImmediateCaptureTimer(ManualTimeProvider timeProvider) : ICaptureTimer
     {
         public Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            timeProvider.Advance(delay);
             return Task.CompletedTask;
         }
     }
@@ -292,5 +331,17 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
     {
         public Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken) =>
             Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+    }
+
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private long _timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp() => Interlocked.Read(ref _timestamp);
+
+        public void Advance(TimeSpan duration) =>
+            Interlocked.Add(ref _timestamp, duration.Ticks);
     }
 }

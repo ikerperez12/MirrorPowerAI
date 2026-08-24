@@ -3,17 +3,28 @@ using MirrorPowerAI.Core.Models;
 namespace MirrorPowerAI.Windows.Transcription;
 
 /// <summary>
-/// Resolves a locally verified Whisper model path.
+/// Represents a verified model handle that remains locked until local inference finishes.
 /// </summary>
-public interface IWhisperModelPathProvider
+public interface IWhisperModelLease : IDisposable
 {
     /// <summary>
-    /// Returns a verified model, downloading it atomically when necessary.
+    /// Gets the verified Whisper model path protected by the lease.
+    /// </summary>
+    string ModelPath { get; }
+}
+
+/// <summary>
+/// Acquires a locally verified Whisper model lease.
+/// </summary>
+public interface IWhisperModelLeaseProvider
+{
+    /// <summary>
+    /// Returns a verified model lease, downloading it atomically when necessary.
     /// </summary>
     /// <param name="modelDirectory">Application-owned model directory.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The full verified model path.</returns>
-    Task<string> EnsureAvailableAsync(
+    /// <returns>A lease that prevents the verified model from being replaced during use.</returns>
+    Task<IWhisperModelLease> AcquireVerifiedLeaseAsync(
         string modelDirectory,
         CancellationToken cancellationToken = default);
 }
@@ -21,17 +32,34 @@ public interface IWhisperModelPathProvider
 /// <summary>
 /// Adapts the supply-chain-verified Core model manager to the Windows transcription service.
 /// </summary>
-public sealed class WhisperModelPathProvider(WhisperModelManager modelManager)
-    : IWhisperModelPathProvider
+public sealed class WhisperModelLeaseProvider(WhisperModelManager modelManager)
+    : IWhisperModelLeaseProvider
 {
     private readonly WhisperModelManager _modelManager =
         modelManager ?? throw new ArgumentNullException(nameof(modelManager));
 
     /// <inheritdoc />
-    public Task<string> EnsureAvailableAsync(
+    public async Task<IWhisperModelLease> AcquireVerifiedLeaseAsync(
         string modelDirectory,
         CancellationToken cancellationToken = default) =>
-        _modelManager.EnsureAvailableAsync(modelDirectory, cancellationToken);
+        new WhisperModelLeaseAdapter(
+            await _modelManager
+                .AcquireVerifiedLeaseAsync(modelDirectory, cancellationToken)
+                .ConfigureAwait(false));
+
+    private sealed class WhisperModelLeaseAdapter(WhisperModelLease lease) : IWhisperModelLease
+    {
+        private WhisperModelLease? _lease = lease ?? throw new ArgumentNullException(nameof(lease));
+
+        public string ModelPath => (_lease ?? throw new ObjectDisposedException(nameof(WhisperModelLeaseAdapter)))
+            .ModelPath;
+
+        public void Dispose()
+        {
+            var lease = Interlocked.Exchange(ref _lease, null);
+            lease?.Dispose();
+        }
+    }
 }
 
 /// <summary>

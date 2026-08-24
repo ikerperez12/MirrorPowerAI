@@ -13,7 +13,7 @@ public sealed class WhisperLocalTranscriptionService : ITranscriptionService
 {
     private const int WaveHeaderLength = 44;
     private static readonly TimeSpan MaximumAudioDuration = TimeSpan.FromMinutes(5);
-    private readonly IWhisperModelPathProvider _modelPathProvider;
+    private readonly IWhisperModelLeaseProvider _modelLeaseProvider;
     private readonly IWhisperInferenceEngine _inferenceEngine;
     private readonly string _modelDirectory;
     private readonly int _threadCount;
@@ -29,7 +29,7 @@ public sealed class WhisperLocalTranscriptionService : ITranscriptionService
         string modelDirectory,
         int? threadCount = null)
         : this(
-            new WhisperModelPathProvider(modelManager),
+            new WhisperModelLeaseProvider(modelManager),
             new WhisperNetInferenceEngine(),
             modelDirectory,
             threadCount)
@@ -39,17 +39,17 @@ public sealed class WhisperLocalTranscriptionService : ITranscriptionService
     /// <summary>
     /// Initializes a testable local transcription service with explicit adapters.
     /// </summary>
-    /// <param name="modelPathProvider">Verified model path provider.</param>
+    /// <param name="modelLeaseProvider">Verified model lease provider.</param>
     /// <param name="inferenceEngine">Local inference adapter.</param>
     /// <param name="modelDirectory">Application-owned model directory.</param>
     /// <param name="threadCount">Optional CPU inference thread count.</param>
     public WhisperLocalTranscriptionService(
-        IWhisperModelPathProvider modelPathProvider,
+        IWhisperModelLeaseProvider modelLeaseProvider,
         IWhisperInferenceEngine inferenceEngine,
         string modelDirectory,
         int? threadCount = null)
     {
-        ArgumentNullException.ThrowIfNull(modelPathProvider);
+        ArgumentNullException.ThrowIfNull(modelLeaseProvider);
         ArgumentNullException.ThrowIfNull(inferenceEngine);
         ArgumentException.ThrowIfNullOrWhiteSpace(modelDirectory);
 
@@ -58,7 +58,7 @@ public sealed class WhisperLocalTranscriptionService : ITranscriptionService
         ArgumentOutOfRangeException.ThrowIfLessThan(effectiveThreadCount, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(effectiveThreadCount, 32);
 
-        _modelPathProvider = modelPathProvider;
+        _modelLeaseProvider = modelLeaseProvider;
         _inferenceEngine = inferenceEngine;
         _modelDirectory = Path.GetFullPath(modelDirectory);
         _threadCount = effectiveThreadCount;
@@ -91,15 +91,15 @@ public sealed class WhisperLocalTranscriptionService : ITranscriptionService
         }
 
         var normalizedLanguage = NormalizeLanguage(language);
-        var modelPath = await _modelPathProvider
-            .EnsureAvailableAsync(_modelDirectory, cancellationToken)
+        using var modelLease = await _modelLeaseProvider
+            .AcquireVerifiedLeaseAsync(_modelDirectory, cancellationToken)
             .ConfigureAwait(false);
 
         try
         {
             var transcript = await _inferenceEngine
                 .TranscribeAsync(
-                    modelPath,
+                    modelLease.ModelPath,
                     audio.WavData,
                     normalizedLanguage,
                     _threadCount,

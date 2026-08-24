@@ -11,7 +11,7 @@ public sealed class WhisperLocalTranscriptionServiceTests
     public async Task TranscribeAsync_ValidAudio_UsesVerifiedModelAndReturnsPlainText()
     {
         // Arrange
-        var modelProvider = new FakeModelPathProvider();
+        var modelProvider = new FakeModelLeaseProvider();
         var engine = new FakeInferenceEngine("  transcripción local  ");
         var service = CreateService(modelProvider, engine);
         var audio = CreateAudio(containsAudibleSignal: true);
@@ -25,13 +25,14 @@ public sealed class WhisperLocalTranscriptionServiceTests
         Assert.Equal(1, modelProvider.CallCount);
         Assert.Equal("es", engine.Language);
         Assert.Equal(4, engine.ThreadCount);
+        Assert.True(modelProvider.Lease.IsDisposed);
     }
 
     [Fact]
     public async Task TranscribeAsync_SilentAudio_FailsBeforeModelAccess()
     {
         // Arrange
-        var modelProvider = new FakeModelPathProvider();
+        var modelProvider = new FakeModelLeaseProvider();
         var service = CreateService(modelProvider, new FakeInferenceEngine("unused"));
         var audio = CreateAudio(containsAudibleSignal: false);
 
@@ -48,7 +49,7 @@ public sealed class WhisperLocalTranscriptionServiceTests
     public async Task TranscribeAsync_InvalidWave_FailsBeforeModelAccess()
     {
         // Arrange
-        var modelProvider = new FakeModelPathProvider();
+        var modelProvider = new FakeModelLeaseProvider();
         var service = CreateService(modelProvider, new FakeInferenceEngine("unused"));
         var audio = new CapturedAudio(new byte[44], TimeSpan.Zero);
 
@@ -66,7 +67,7 @@ public sealed class WhisperLocalTranscriptionServiceTests
     {
         // Arrange
         var engine = new FakeInferenceEngine("texto");
-        var service = CreateService(new FakeModelPathProvider(), engine);
+        var service = CreateService(new FakeModelLeaseProvider(), engine);
 
         // Act
         _ = await service.TranscribeAsync(CreateAudio(containsAudibleSignal: true), " AUTO ");
@@ -80,7 +81,7 @@ public sealed class WhisperLocalTranscriptionServiceTests
     {
         // Arrange
         var service = CreateService(
-            new FakeModelPathProvider(),
+            new FakeModelLeaseProvider(),
             new FakeInferenceEngine("   "));
 
         // Act
@@ -98,7 +99,7 @@ public sealed class WhisperLocalTranscriptionServiceTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         var service = CreateService(
-            new FakeModelPathProvider(),
+            new FakeModelLeaseProvider(),
             new FakeInferenceEngine("unused"));
 
         // Act and assert
@@ -109,8 +110,45 @@ public sealed class WhisperLocalTranscriptionServiceTests
                 cancellation.Token));
     }
 
+    [Fact]
+    public async Task TranscribeAsync_InferenceFailure_DisposesVerifiedModelLease()
+    {
+        // Arrange
+        var modelProvider = new FakeModelLeaseProvider();
+        var service = CreateService(modelProvider, new ThrowingInferenceEngine());
+
+        // Act and assert
+        _ = await Assert.ThrowsAsync<WhisperTranscriptionException>(() =>
+            service.TranscribeAsync(CreateAudio(containsAudibleSignal: true), "es"));
+
+        Assert.True(modelProvider.Lease.IsDisposed);
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_CancelledInference_RetainsLeaseUntilCancellationThenDisposesIt()
+    {
+        // Arrange
+        var modelProvider = new FakeModelLeaseProvider();
+        var engine = new BlockingInferenceEngine();
+        var service = CreateService(modelProvider, engine);
+        using var cancellation = new CancellationTokenSource();
+
+        // Act
+        var operation = service.TranscribeAsync(
+            CreateAudio(containsAudibleSignal: true),
+            "es",
+            cancellation.Token);
+        await engine.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        // Assert
+        Assert.False(modelProvider.Lease.IsDisposed);
+        cancellation.Cancel();
+        _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation);
+        Assert.True(modelProvider.Lease.IsDisposed);
+    }
+
     private static WhisperLocalTranscriptionService CreateService(
-        IWhisperModelPathProvider modelProvider,
+        IWhisperModelLeaseProvider modelProvider,
         IWhisperInferenceEngine engine) =>
         new(
             modelProvider,
@@ -140,18 +178,30 @@ public sealed class WhisperLocalTranscriptionServiceTests
             containsAudibleSignal);
     }
 
-    private sealed class FakeModelPathProvider : IWhisperModelPathProvider
+    private sealed class FakeModelLeaseProvider : IWhisperModelLeaseProvider
     {
         public int CallCount { get; private set; }
 
-        public Task<string> EnsureAvailableAsync(
+        public FakeModelLease Lease { get; } = new();
+
+        public Task<IWhisperModelLease> AcquireVerifiedLeaseAsync(
             string modelDirectory,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             CallCount++;
-            return Task.FromResult(Path.Combine(modelDirectory, "verified-model.bin"));
+            Lease.ModelPath = Path.Combine(modelDirectory, "verified-model.bin");
+            return Task.FromResult<IWhisperModelLease>(Lease);
         }
+    }
+
+    private sealed class FakeModelLease : IWhisperModelLease
+    {
+        public string ModelPath { get; set; } = string.Empty;
+
+        public bool IsDisposed { get; private set; }
+
+        public void Dispose() => IsDisposed = true;
     }
 
     private sealed class FakeInferenceEngine(string transcript) : IWhisperInferenceEngine
@@ -171,6 +221,34 @@ public sealed class WhisperLocalTranscriptionServiceTests
             Language = language;
             ThreadCount = threadCount;
             return Task.FromResult(transcript);
+        }
+    }
+
+    private sealed class ThrowingInferenceEngine : IWhisperInferenceEngine
+    {
+        public Task<string> TranscribeAsync(
+            string modelPath,
+            ReadOnlyMemory<byte> wavData,
+            string language,
+            int threadCount,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("synthetic inference failure");
+    }
+
+    private sealed class BlockingInferenceEngine : IWhisperInferenceEngine
+    {
+        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<string> TranscribeAsync(
+            string modelPath,
+            ReadOnlyMemory<byte> wavData,
+            string language,
+            int threadCount,
+            CancellationToken cancellationToken = default)
+        {
+            Started.TrySetResult(true);
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return "unreachable";
         }
     }
 }

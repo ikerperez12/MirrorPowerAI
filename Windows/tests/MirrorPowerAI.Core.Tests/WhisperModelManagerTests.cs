@@ -56,6 +56,43 @@ public sealed class WhisperModelManagerTests
     }
 
     [Fact]
+    public async Task AcquireVerifiedLeaseAsync_ValidModel_BlocksReplacementAndDeletionUntilDisposed()
+    {
+        // Arrange
+        var bytes = new byte[] { 1, 2, 3, 4 };
+        var descriptor = CreateDescriptor(bytes);
+        using var directory = new TemporaryDirectory();
+        var target = System.IO.Path.Combine(directory.Path, descriptor.FileName);
+        await File.WriteAllBytesAsync(target, bytes);
+        using var handler = RecordingHttpMessageHandler.Json("unreachable");
+        using var httpClient = new HttpClient(handler);
+        using var manager = new WhisperModelManager(httpClient, descriptor);
+
+        // Act
+        var lease = await manager.AcquireVerifiedLeaseAsync(directory.Path);
+        try
+        {
+            // Assert
+            Assert.Throws<IOException>(() =>
+                new FileStream(target, FileMode.Open, FileAccess.Write, FileShare.None).Dispose());
+            Assert.Throws<IOException>(() => File.Delete(target));
+        }
+        finally
+        {
+            lease.Dispose();
+        }
+
+        // The sharing lock is released deterministically when the consumer completes.
+        using (var writable = new FileStream(target, FileMode.Open, FileAccess.Write, FileShare.None))
+        {
+        }
+
+        File.Delete(target);
+        Assert.False(File.Exists(target));
+        Assert.Equal(0, handler.CallCount);
+    }
+
+    [Fact]
     public async Task EnsureAvailableAsync_ValidDownload_AtomicallyActivatesAndRemovesTemporaryFile()
     {
         var bytes = new byte[] { 9, 8, 7, 6, 5 };

@@ -7,18 +7,18 @@ namespace MirrorPowerAI.Benchmark;
 
 internal sealed class ResolvedBenchmarkModel : IDisposable
 {
-    private FileStream? _cachedModelLock;
+    private IDisposable? _modelLease;
 
     public ResolvedBenchmarkModel(
         string modelPath,
         WhisperModelDescriptor descriptor,
         TimeSpan verificationElapsed,
-        FileStream? cachedModelLock = null)
+        IDisposable? modelLease = null)
     {
         ModelPath = modelPath;
         Descriptor = descriptor;
         VerificationElapsed = verificationElapsed;
-        _cachedModelLock = cachedModelLock;
+        _modelLease = modelLease;
     }
 
     public string ModelPath { get; }
@@ -28,14 +28,14 @@ internal sealed class ResolvedBenchmarkModel : IDisposable
     public TimeSpan VerificationElapsed { get; }
 
     /// <summary>
-    /// Retains a read-only share lock for a verified cached model until every
+    /// Retains a read-only share lock for a verified model until every
     /// corpus item finishes. Whisper opens a second read handle, while Windows
     /// denies write/delete replacement between hash verification and inference.
     /// </summary>
     public void Dispose()
     {
-        _cachedModelLock?.Dispose();
-        _cachedModelLock = null;
+        var modelLease = Interlocked.Exchange(ref _modelLease, null);
+        modelLease?.Dispose();
         GC.SuppressFinalize(this);
     }
 }
@@ -66,32 +66,43 @@ internal sealed class PinnedBenchmarkModelResolver : IBenchmarkModelResolver
         descriptor.EnsureValid();
         var stopwatch = Stopwatch.StartNew();
         string modelPath;
-        FileStream? cachedModelLock = null;
-        if (options.RequireCachedModel)
+        IDisposable? modelLease = null;
+        try
         {
-            var cachedModel = await ResolveCachedAsync(
-                    descriptor,
-                    options.ModelDirectory,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            modelPath = cachedModel.Path;
-            cachedModelLock = cachedModel.LockStream;
-        }
-        else
-        {
-            using var httpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-            using var modelManager = new WhisperModelManager(httpClient, descriptor);
-            modelPath = await modelManager
-                .EnsureAvailableAsync(options.ModelDirectory, cancellationToken)
-                .ConfigureAwait(false);
-        }
+            if (options.RequireCachedModel)
+            {
+                var cachedModel = await ResolveCachedAsync(
+                        descriptor,
+                        options.ModelDirectory,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                modelPath = cachedModel.Path;
+                modelLease = cachedModel.LockStream;
+            }
+            else
+            {
+                using var httpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+                using var modelManager = new WhisperModelManager(httpClient, descriptor);
+                var downloadedLease = await modelManager
+                    .AcquireVerifiedLeaseAsync(options.ModelDirectory, cancellationToken)
+                    .ConfigureAwait(false);
+                modelPath = downloadedLease.ModelPath;
+                modelLease = downloadedLease;
+            }
 
-        stopwatch.Stop();
-        return new ResolvedBenchmarkModel(
-            modelPath,
-            descriptor,
-            stopwatch.Elapsed,
-            cachedModelLock);
+            stopwatch.Stop();
+            var resolved = new ResolvedBenchmarkModel(
+                modelPath,
+                descriptor,
+                stopwatch.Elapsed,
+                modelLease);
+            modelLease = null;
+            return resolved;
+        }
+        finally
+        {
+            modelLease?.Dispose();
+        }
     }
 
     private static async Task<VerifiedCachedModel> ResolveCachedAsync(
