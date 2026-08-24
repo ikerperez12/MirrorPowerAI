@@ -1,8 +1,10 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using MirrorPowerAI.Windows.Platform;
 using Forms = System.Windows.Forms;
 using WpfTextBox = System.Windows.Controls.TextBox;
@@ -14,12 +16,30 @@ namespace MirrorPowerAI.Windows.UI;
 /// </summary>
 public partial class OverlayWindow : Window
 {
+    private readonly IOverlayDisplaySettingsChangeSource _displaySettingsChangeSource;
+    private readonly IOverlayMonitorPlacementService _monitorPlacementService;
     private bool _contentAnnouncementPending;
     private bool _contentAnnouncementScheduled;
+    private int _displaySettingsSubscribed;
+    private int _displaySettingsRepositionQueued;
 
     /// <summary>Initializes an empty overlay. Sensitive text must be assigned only after protection succeeds.</summary>
     public OverlayWindow()
+        : this(new SystemOverlayDisplaySettingsChangeSource(), new SystemOverlayMonitorPlacementService())
     {
+    }
+
+    /// <summary>Initializes an overlay with testable display-topology dependencies.</summary>
+    /// <param name="displaySettingsChangeSource">Notifies when the desktop display topology changes.</param>
+    /// <param name="monitorPlacementService">Places the overlay inside the active monitor's working area.</param>
+    internal OverlayWindow(
+        IOverlayDisplaySettingsChangeSource displaySettingsChangeSource,
+        IOverlayMonitorPlacementService monitorPlacementService)
+    {
+        _displaySettingsChangeSource = displaySettingsChangeSource ??
+            throw new ArgumentNullException(nameof(displaySettingsChangeSource));
+        _monitorPlacementService = monitorPlacementService ??
+            throw new ArgumentNullException(nameof(monitorPlacementService));
         InitializeComponent();
         ContentRendered += OnContentRendered;
     }
@@ -55,6 +75,11 @@ public partial class OverlayWindow : Window
     /// <summary>Centers and bounds the overlay inside the working area of the monitor under the pointer.</summary>
     public void PositionOnActiveMonitor()
     {
+        _monitorPlacementService.Position(this);
+    }
+
+    internal void PositionOnActiveMonitorCore()
+    {
         var screen = Forms.Screen.FromPoint(Forms.Cursor.Position);
         var windowHandle = new WindowInteropHelper(this).EnsureHandle();
         if (MonitorPlacementService.TryCenter(
@@ -84,7 +109,80 @@ public partial class OverlayWindow : Window
 
     private void OnContentRendered(object? sender, EventArgs eventArgs)
     {
+        SubscribeToDisplaySettingsChanges();
         ScheduleContentAnnouncement();
+    }
+
+    private void SubscribeToDisplaySettingsChanges()
+    {
+        Dispatcher.VerifyAccess();
+        if (!IsVisible || Interlocked.CompareExchange(ref _displaySettingsSubscribed, 1, 0) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _displaySettingsChangeSource.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        }
+        catch
+        {
+            Interlocked.Exchange(ref _displaySettingsSubscribed, 0);
+            throw;
+        }
+    }
+
+    private void OnDisplaySettingsChanged(object? sender, EventArgs eventArgs)
+    {
+        // SystemEvents can raise on a non-WPF thread. Never inspect WPF state there; coalesce the
+        // notification and marshal the final placement decision to the owning dispatcher instead.
+        if (Volatile.Read(ref _displaySettingsSubscribed) == 0 ||
+            Dispatcher.HasShutdownStarted ||
+            Interlocked.Exchange(ref _displaySettingsRepositionQueued, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _ = Dispatcher.BeginInvoke(
+                DispatcherPriority.ApplicationIdle,
+                new Action(RepositionAfterDisplaySettingsChanged));
+        }
+        catch (InvalidOperationException)
+        {
+            Interlocked.Exchange(ref _displaySettingsRepositionQueued, 0);
+        }
+    }
+
+    private void RepositionAfterDisplaySettingsChanged()
+    {
+        Dispatcher.VerifyAccess();
+        Interlocked.Exchange(ref _displaySettingsRepositionQueued, 0);
+        if (Volatile.Read(ref _displaySettingsSubscribed) == 0 || !IsVisible)
+        {
+            return;
+        }
+
+        try
+        {
+            PositionOnActiveMonitor();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or Win32Exception)
+        {
+            // The existing protected window remains available if Windows is between topology updates.
+            // A later display-settings event can safely retry placement; no sensitive data is emitted.
+        }
+    }
+
+    private void UnsubscribeFromDisplaySettingsChanges()
+    {
+        if (Interlocked.Exchange(ref _displaySettingsSubscribed, 0) == 0)
+        {
+            return;
+        }
+
+        _displaySettingsChangeSource.DisplaySettingsChanged -= OnDisplaySettingsChanged;
     }
 
     private void ScheduleContentAnnouncement()
@@ -147,9 +245,43 @@ public partial class OverlayWindow : Window
     /// <inheritdoc />
     protected override void OnClosed(EventArgs e)
     {
+        UnsubscribeFromDisplaySettingsChanges();
+        Interlocked.Exchange(ref _displaySettingsRepositionQueued, 0);
         ClearSensitiveContent();
         ContentRendered -= OnContentRendered;
         base.OnClosed(e);
+    }
+}
+
+/// <summary>Exposes desktop display-topology changes without coupling tests to <see cref="SystemEvents"/>.</summary>
+internal interface IOverlayDisplaySettingsChangeSource
+{
+    event EventHandler? DisplaySettingsChanged;
+}
+
+/// <summary>Bridges the system display-settings event to the overlay's lifetime.</summary>
+internal sealed class SystemOverlayDisplaySettingsChangeSource : IOverlayDisplaySettingsChangeSource
+{
+    public event EventHandler? DisplaySettingsChanged
+    {
+        add => SystemEvents.DisplaySettingsChanged += value;
+        remove => SystemEvents.DisplaySettingsChanged -= value;
+    }
+}
+
+/// <summary>Places an overlay in response to its initial display or a topology change.</summary>
+internal interface IOverlayMonitorPlacementService
+{
+    void Position(OverlayWindow window);
+}
+
+/// <summary>Performs the production pointer-monitor placement for an overlay.</summary>
+internal sealed class SystemOverlayMonitorPlacementService : IOverlayMonitorPlacementService
+{
+    public void Position(OverlayWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        window.PositionOnActiveMonitorCore();
     }
 }
 
