@@ -35,7 +35,7 @@ public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource,
     public TrayIconService(LocalizationService localization)
     {
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
-        _icon = (Icon)SystemIcons.Application.Clone();
+        _icon = TrayIconFactory.Create();
         _statusItem = new Forms.ToolStripMenuItem { Enabled = false };
         _toggleItem = new Forms.ToolStripMenuItem();
         _showResponseItem = new Forms.ToolStripMenuItem();

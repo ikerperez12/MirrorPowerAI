@@ -25,6 +25,8 @@ flowchart LR
 - `MirrorPowerAI.Core.Tests`: pruebas deterministas independientes de WPF.
 - `MirrorPowerAI.Windows.Tests`: conversión de audio y wrappers Windows simulables.
 
+La bandeja usa un icono propio generado como ICO multirresolución (16–256 px) y conserva un icono del sistema como fallback si GDI+ no puede crearlo. Esto evita depender de un binario opaco y permite que Windows seleccione una representación nítida para cada escala de pantalla.
+
 ## Máquina de estados
 
 `Idle -> Capturing -> Transcribing -> RequestingAnswer -> ShowingResult -> Idle`
