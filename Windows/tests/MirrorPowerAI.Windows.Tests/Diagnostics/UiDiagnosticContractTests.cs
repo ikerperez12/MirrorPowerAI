@@ -75,4 +75,26 @@ public sealed class UiDiagnosticContractTests
         // Assert
         Assert.Equal(expectedFailureName, result.ToString());
     }
+
+    [Theory]
+    [InlineData(2, 1, 0, "None")]
+    [InlineData(1, 1, 0, "UnexpectedDependencyUse")]
+    [InlineData(2, 0, 0, "UnexpectedDependencyUse")]
+    [InlineData(2, 1, 1, "UnexpectedDependencyUse")]
+    public void ValidateIsolation_ExpectedInMemoryReads_RejectsAnyMismatchOrMutation(
+        int secretReadCount,
+        int audioCatalogCallCount,
+        int mutationCount,
+        string expectedFailureName)
+    {
+        var result = UiDiagnosticContract.ValidateIsolation(
+            secretReadCount,
+            audioCatalogCallCount,
+            temporarySettingsWereCreated: false,
+            expectedSecretStoreCallCount: 2,
+            expectedAudioCatalogCallCount: 1,
+            unexpectedMutationCount: mutationCount);
+
+        Assert.Equal(expectedFailureName, result.ToString());
+    }
 }

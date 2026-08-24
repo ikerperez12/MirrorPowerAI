@@ -20,8 +20,8 @@ namespace MirrorPowerAI.Windows.Diagnostics;
 /// </summary>
 /// <remarks>
 /// This diagnostic deliberately constructs no DPAPI implementation, real audio catalog, session,
-/// HTTP client, model manager, or settings load/save operation. It only creates windows with empty
-/// in-memory dependencies and non-sensitive fixed overlay text.
+/// HTTP client, or model manager. It loads defaults from an isolated missing settings path and uses
+/// non-sensitive in-memory dependencies plus fixed overlay text.
 /// </remarks>
 internal sealed class UiDiagnostic
 {
@@ -62,15 +62,40 @@ internal sealed class UiDiagnostic
                 secretStore,
                 audioCatalog,
                 LocalizationService.Current);
+            await settingsWindow.ReloadAsync(operationToken);
             await ShowAndAwaitRenderAsync(settingsWindow, operationToken);
 
-            failure = UiDiagnosticContract.ValidateSettingsWindow(settingsWindow);
+            failure = UiDiagnosticContract.ValidateSettingsWindow(
+                settingsWindow,
+                expectCloudConsentVisible: false);
+            if (failure == UiDiagnosticFailure.None)
+            {
+                if (settingsWindow.FindName("ProviderBox") is not WpfComboBox providerBox)
+                {
+                    failure = UiDiagnosticFailure.SettingsControlsInvalid;
+                }
+                else
+                {
+                    providerBox.SelectedValue = TranscriptionProviders.GeminiAudio;
+                    await Dispatcher.CurrentDispatcher.InvokeAsync(
+                        static () => { },
+                        DispatcherPriority.Render,
+                        operationToken);
+                    failure = UiDiagnosticContract.ValidateSettingsWindow(
+                        settingsWindow,
+                        expectCloudConsentVisible: true);
+                }
+            }
+
             if (failure == UiDiagnosticFailure.None)
             {
                 failure = UiDiagnosticContract.ValidateIsolation(
-                    secretStore.CallCount,
+                    secretStore.ReadCallCount,
                     audioCatalog.CallCount,
-                    temporarySettingsWereCreated: false);
+                    temporarySettingsWereCreated: false,
+                    expectedSecretStoreCallCount: 2,
+                    expectedAudioCatalogCallCount: 1,
+                    unexpectedMutationCount: secretStore.MutationCallCount);
             }
 
             if (failure == UiDiagnosticFailure.None && !await CloseSettingsWindowAsync(settingsWindow))
@@ -136,9 +161,12 @@ internal sealed class UiDiagnostic
             if (failure == UiDiagnosticFailure.None)
             {
                 failure = UiDiagnosticContract.ValidateIsolation(
-                    secretStore.CallCount,
+                    secretStore.ReadCallCount,
                     audioCatalog.CallCount,
-                    temporarySettingsWereCreated);
+                    temporarySettingsWereCreated,
+                    expectedSecretStoreCallCount: 2,
+                    expectedAudioCatalogCallCount: 1,
+                    unexpectedMutationCount: secretStore.MutationCallCount);
             }
 
             if (failure == UiDiagnosticFailure.None && !temporarySettingsInspectionSucceeded)
@@ -350,27 +378,27 @@ internal sealed class UiDiagnostic
 
     private sealed class DiagnosticSecretStore : ISecretStore
     {
-        internal int CallCount { get; private set; }
+        internal int ReadCallCount { get; private set; }
 
-        public Task<string?> GetSecretAsync(string name, CancellationToken cancellationToken = default) =>
-            Reject<string?>();
+        internal int MutationCallCount { get; private set; }
 
-        public Task SetSecretAsync(string name, string value, CancellationToken cancellationToken = default) =>
-            Reject();
-
-        public Task DeleteSecretAsync(string name, CancellationToken cancellationToken = default) =>
-            Reject();
-
-        private Task Reject()
+        public Task<string?> GetSecretAsync(string name, CancellationToken cancellationToken = default)
         {
-            CallCount++;
-            return Task.FromException(new InvalidOperationException("The UI diagnostic must not access secrets."));
+            cancellationToken.ThrowIfCancellationRequested();
+            ReadCallCount++;
+            return Task.FromResult<string?>(null);
         }
 
-        private Task<T> Reject<T>()
+        public Task SetSecretAsync(string name, string value, CancellationToken cancellationToken = default) =>
+            RejectMutation();
+
+        public Task DeleteSecretAsync(string name, CancellationToken cancellationToken = default) =>
+            RejectMutation();
+
+        private Task RejectMutation()
         {
-            CallCount++;
-            return Task.FromException<T>(new InvalidOperationException("The UI diagnostic must not access secrets."));
+            MutationCallCount++;
+            return Task.FromException(new InvalidOperationException("The UI diagnostic must not access secrets."));
         }
     }
 
@@ -380,9 +408,11 @@ internal sealed class UiDiagnostic
 
         public Task<IReadOnlyList<AudioDeviceOption>> GetOutputDevicesAsync(CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             CallCount++;
-            return Task.FromException<IReadOnlyList<AudioDeviceOption>>(
-                new InvalidOperationException("The UI diagnostic must not enumerate audio devices."));
+            IReadOnlyList<AudioDeviceOption> devices =
+            [new AudioDeviceOption(AudioDeviceOption.DefaultDeviceId, "Diagnostic default output")];
+            return Task.FromResult(devices);
         }
     }
 }
@@ -394,8 +424,11 @@ internal static class UiDiagnosticContract
 {
     /// <summary>Checks the shown settings window and its critical interactive controls.</summary>
     /// <param name="window">The rendered settings window.</param>
+    /// <param name="expectCloudConsentVisible">Whether the selected provider should expose cloud consent.</param>
     /// <returns>A categorical failure, or <see cref="UiDiagnosticFailure.None"/>.</returns>
-    internal static UiDiagnosticFailure ValidateSettingsWindow(MainWindow window)
+    internal static UiDiagnosticFailure ValidateSettingsWindow(
+        MainWindow window,
+        bool expectCloudConsentVisible)
     {
         ArgumentNullException.ThrowIfNull(window);
 
@@ -409,15 +442,25 @@ internal static class UiDiagnosticContract
             return UiDiagnosticFailure.SettingsWindowAutomationMissing;
         }
 
-        return ValidateCriticalControls(
+        var criticalControls = ValidateCriticalControls(
         [
             InspectControl(window, "ApiKeyBox", typeof(WpfPasswordBox)),
             InspectControl(window, "ContextBox", typeof(WpfTextBox)),
             InspectControl(window, "ProviderBox", typeof(WpfComboBox)),
             InspectControl(window, "LanguageBox", typeof(WpfComboBox)),
             InspectControl(window, "DeviceBox", typeof(WpfComboBox)),
-            InspectControl(window, "CloudConsentBox", typeof(WpfCheckBox)),
         ]);
+        if (criticalControls != UiDiagnosticFailure.None)
+        {
+            return criticalControls;
+        }
+
+        var consentControl = InspectControl(window, "CloudConsentBox", typeof(WpfCheckBox));
+        return consentControl.Exists &&
+               consentControl.HasAutomationName &&
+               consentControl.IsVisible == expectCloudConsentVisible
+            ? UiDiagnosticFailure.None
+            : UiDiagnosticFailure.SettingsControlsInvalid;
     }
 
     /// <summary>Checks the shown protected overlay and its selectable text controls.</summary>
@@ -463,12 +506,20 @@ internal static class UiDiagnosticContract
     /// <param name="secretStoreCallCount">Calls observed on the diagnostic in-memory secret store.</param>
     /// <param name="audioCatalogCallCount">Calls observed on the diagnostic in-memory audio catalog.</param>
     /// <param name="temporarySettingsWereCreated">Whether the diagnostic-only settings path appeared on disk.</param>
+    /// <param name="expectedSecretStoreCallCount">Expected bounded secret reads from the in-memory adapter.</param>
+    /// <param name="expectedAudioCatalogCallCount">Expected bounded calls to the in-memory device adapter.</param>
+    /// <param name="unexpectedMutationCount">Unexpected attempts to mutate protected values.</param>
     /// <returns>A categorical isolation failure, or <see cref="UiDiagnosticFailure.None"/>.</returns>
     internal static UiDiagnosticFailure ValidateIsolation(
         int secretStoreCallCount,
         int audioCatalogCallCount,
-        bool temporarySettingsWereCreated) =>
-        secretStoreCallCount != 0 || audioCatalogCallCount != 0
+        bool temporarySettingsWereCreated,
+        int expectedSecretStoreCallCount = 0,
+        int expectedAudioCatalogCallCount = 0,
+        int unexpectedMutationCount = 0) =>
+        secretStoreCallCount != expectedSecretStoreCallCount ||
+        audioCatalogCallCount != expectedAudioCatalogCallCount ||
+        unexpectedMutationCount != 0
             ? UiDiagnosticFailure.UnexpectedDependencyUse
             : temporarySettingsWereCreated
                 ? UiDiagnosticFailure.UnexpectedSettingsUse
