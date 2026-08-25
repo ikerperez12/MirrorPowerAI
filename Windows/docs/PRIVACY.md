@@ -2,7 +2,7 @@
 
 ## LocalWhisper (predeterminado)
 
-1. WASAPI captura la salida del sistema en memoria.
+1. WASAPI captura en memoria la fuente elegida: la mezcla de un dispositivo de salida o el árbol de una aplicación compatible.
 2. El audio se normaliza a WAV PCM mono, 16 kHz y 16 bits.
 3. Whisper transcribe localmente.
 4. Se envían a Gemini únicamente la transcripción y el contexto configurado para generar la respuesta.
@@ -25,4 +25,4 @@
 
 ## Control del usuario
 
-La configuración permite cambiar proveedor, retirar el consentimiento de nube, reemplazar o borrar la API key y cerrar la aplicación. El límite máximo de una captura es de 300 segundos.
+La configuración permite elegir conscientemente entre audio completo del sistema y una aplicación, cambiar proveedor, retirar el consentimiento de nube, reemplazar o borrar la API key y cerrar la aplicación. No existe fallback silencioso de aplicación a sistema ni de transcripción local a nube. El selector sólo conserva nombre de ejecutable y PID; nunca almacena títulos de reuniones, ventanas o pestañas. El límite máximo de una captura es de 300 segundos.

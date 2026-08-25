@@ -28,10 +28,16 @@ Otra aplicación puede haber registrado `Alt+Shift+L`. Cierra la aplicación en 
 
 ## No se captura audio
 
-- Comprueba que existe reproducción audible en el dispositivo de salida seleccionado.
-- Evita cambiar o desconectar el dispositivo durante una captura.
+- Para Teams de escritorio usa **Todo el audio del sistema**; el aislamiento por aplicación puede devolver silencio por una limitación conocida de la API de Windows.
+- En modo **Todo el audio del sistema**, comprueba que existe reproducción audible en el dispositivo seleccionado y evita cambiarlo o desconectarlo durante una captura.
+- En modo **Una aplicación concreta**, inicia la reunión o reproducción, abre Configuración, pulsa **Actualizar** y vuelve a seleccionar la aplicación. Si se cierra o reinicia durante la captura, detén la sesión y actualiza la lista.
+- En navegador selecciona el ejecutable correspondiente (`msedge`, `chrome`, `firefox`, etc.), no el título de la pestaña. Si la arquitectura multiproceso del navegador o de la aplicación no entrega señal, usa conscientemente **Todo el audio del sistema**.
 - El contenido protegido por DRM puede no estar disponible mediante WASAPI loopback.
-- Detén la sesión y selecciona de nuevo el dispositivo en Configuración.
+- MirrorPowerAI nunca amplía silenciosamente una captura por aplicación al audio global.
+
+## La aplicación parece no abrirse
+
+La configuración aparece automáticamente al iniciar. Si la cierras, MirrorPowerAI sigue activo en la bandeja de Windows; desde su icono puedes volver a abrir **Configuración** o salir. Si Windows ocultó el icono dentro del menú de iconos desbordados, abre ese menú. Sólo puede ejecutarse una instancia a la vez.
 
 ## Whisper no descarga o rechaza el modelo
 

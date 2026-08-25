@@ -9,7 +9,11 @@ Todo el código Windows vive bajo `Windows/`. Los archivos `Package.swift`, `Sou
 ```mermaid
 flowchart LR
     Hotkey["RegisterHotKey / bandeja"] --> Controller["SessionController"]
-    Controller --> Capture["IAudioCaptureService"]
+    Controller --> Scope{"Fuente elegida"}
+    Scope --> Device["WASAPI loopback del dispositivo"]
+    Scope --> Process["Application loopback del proceso"]
+    Device --> Capture["IAudioCaptureService"]
+    Process --> Capture
     Capture --> Wav["WAV PCM mono 16 kHz"]
     Controller --> Provider{"Proveedor"}
     Provider --> Whisper["Whisper local"]
@@ -37,7 +41,7 @@ Cualquier fallo esperado pasa por `Error` y vuelve a un estado recuperable. `Ses
 
 | macOS | Windows |
 |---|---|
-| Core Audio Process Taps | WASAPI loopback / NAudio |
+| Core Audio Process Taps | WASAPI device loopback o process-tree application loopback / NAudio |
 | Apple Speech | Whisper.net local o Gemini Audio explícito |
 | Carbon hotkey | `RegisterHotKey` con `MOD_NOREPEAT` |
 | Keychain | DPAPI `CurrentUser` |
@@ -57,3 +61,7 @@ El overlay usa una ventana superior opaca (`AllowsTransparency=false`). Sólo mu
 - `%LOCALAPPDATA%\MirrorPowerAI\models\ggml-base.bin`: modelo verificado.
 
 No se persisten audio, transcripciones, respuestas ni contexto en logs.
+
+La fuente de audio se compone al comenzar cada sesión. El modo global resuelve el dispositivo de salida elegido y el modo por aplicación resuelve el PID guardado o una nueva instancia con el mismo nombre de ejecutable. Si esa aplicación no está disponible, se informa del error y no se amplía silenciosamente la captura al sistema completo. `ActivateAudioInterfaceAsync` recibe `AUDIOCLIENT_ACTIVATION_PARAMS` con `PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE`; este modo no está ligado a un dispositivo físico.
+
+Referencias de plataforma: [ejemplo oficial Application Loopback](https://github.com/microsoft/Windows-classic-samples/tree/main/Samples/ApplicationLoopback), [documentación de `PROCESS_LOOPBACK_MODE`](https://learn.microsoft.com/en-us/windows/win32/api/audioclientactivationparams/ne-audioclientactivationparams-process_loopback_mode) y [limitación observada con Teams de escritorio en el ejemplo de Microsoft](https://github.com/microsoft/Windows-classic-samples/issues/414).

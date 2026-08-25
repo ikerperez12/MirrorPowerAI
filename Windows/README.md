@@ -7,7 +7,7 @@ Implementación nativa para Windows 11 x64, aislada de la aplicación macOS orig
 - Rama de desarrollo: `feat/windows-native`.
 - Plataforma objetivo: Windows 11 24H2/25H2 x64.
 - Runtime: WPF sobre .NET 10 LTS, SDK fijado en `10.0.400`.
-- Audio: salida predeterminada del sistema mediante WASAPI loopback.
+- Audio: WASAPI loopback híbrido, con mezcla completa de un dispositivo o aislamiento de una aplicación compatible.
 - Transcripción predeterminada: Whisper local.
 - Transcripción opcional: Gemini Audio, sólo después de consentimiento explícito.
 - Hotkey global: `Alt+Shift+L`.
@@ -69,7 +69,7 @@ Comandos parciales:
 
 `verify-shell.ps1` comprueba de forma aislada la bandeja, el mutex de instancia única y el registro/liberación de `Alt+Shift+L` usando recursos Windows reales. No crea configuración ni usa DPAPI; tampoco inicia audio, carga modelos ni realiza peticiones de red. Requiere una sesión local interactiva y una aplicación normal cerrada; no sustituye comprobar visualmente el icono ni pulsar físicamente el atajo durante la QA manual.
 
-`verify-ui.ps1` ejecuta localmente un ciclo WPF real y acotado de la ventana de configuración y del overlay protegido con texto fijo no sensible. Carga valores predeterminados desde una ruta temporal aislada que no existe y usa almacén de secretos y catálogo de dispositivos exclusivamente en memoria. Comprueba que los controles críticos se renderizan y exponen mediante UI Automation, que el foco lógico inicial llega a la API key, que el consentimiento está oculto con Whisper local y visible con Gemini Audio, que el foco llega al resultado del overlay y que los dos ciclos se cierran y limpian. Omite el inicio normal: no usa DPAPI, audio real, red, modelos, sesiones ni configuración del usuario, y no deja la ruta temporal creada. Requiere una sesión local e interactiva y se rechaza en CI. Es una comprobación de contrato y renderizado; no sustituye la prueba manual de foco de teclado, Narrator, alto contraste, DPI, capturas ni dispositivos reales.
+`verify-ui.ps1` ejecuta localmente un ciclo WPF real y acotado de la ventana de configuración y del overlay protegido con texto fijo no sensible. Carga valores predeterminados desde una ruta temporal aislada que no existe y usa almacén de secretos y catálogos de audio exclusivamente en memoria. Comprueba que los controles críticos se renderizan y exponen mediante UI Automation, que el foco lógico inicial llega a la API key, que se muestran correctamente los modos de audio global y por aplicación, que el consentimiento está oculto con Whisper local y visible con Gemini Audio, que el foco llega al resultado del overlay y que los dos ciclos se cierran y limpian. Omite el inicio normal: no usa DPAPI, audio real, red, modelos, sesiones ni configuración del usuario, y no deja la ruta temporal creada. Requiere una sesión local interactiva y se rechaza en CI. Es una comprobación de contrato y renderizado; no sustituye la prueba manual de foco de teclado, Narrator, alto contraste, DPI, capturas ni dispositivos reales.
 
 `verify-whisper-runtime.ps1` inicia exclusivamente la ruta diagnóstica del portable y obliga a cargar el runtime CPU x64 fijado. Comprueba arquitectura, selección del runtime y una llamada nativa inocua; no abre ni descarga modelos, no procesa audio, no lee configuración o DPAPI y no usa red. Se ejecuta automáticamente tras cada publicación, también en CI.
 
@@ -77,12 +77,16 @@ Comandos parciales:
 
 ## Primera ejecución
 
-1. Abre `MirrorPowerAI.Windows.exe` desde la carpeta publicada.
-2. En la bandeja, abre **Configuración**.
-3. Introduce la API key de Gemini. Se protege con DPAPI para el usuario actual.
-4. Revisa el contexto del proyecto, idioma y dispositivo.
+1. Abre `MirrorPowerAI.Windows.exe` desde la carpeta publicada. **Configuración** aparece automáticamente; al cerrarla la aplicación permanece en la bandeja.
+2. Introduce la API key de Gemini. Se protege con DPAPI para el usuario actual.
+3. En **Fuente de audio**, elige:
+   - **Todo el audio del sistema (recomendado para reuniones)**: captura lo que oyes en el dispositivo elegido. Es el modo recomendado para Teams de escritorio y el más robusto para Teams, Discord, Meet, Zoom y audio del navegador.
+   - **Una aplicación concreta**: inicia antes la reunión o reproducción, pulsa **Actualizar** y selecciona la aplicación. Windows captura el árbol de ese proceso sin mezclar las demás aplicaciones.
+4. Revisa el contexto del proyecto, idioma y dispositivo de salida si elegiste el audio completo del sistema.
 5. Mantén **Whisper local** para máxima privacidad o selecciona **Gemini Audio**, acepta el consentimiento de nube y guarda la configuración. Por privacidad, Gemini Audio vuelve a quedar bloqueado al reiniciar la aplicación hasta que confirmes y guardes esa elección de nuevo.
-6. Pulsa `Alt+Shift+L` para iniciar la captura y vuelve a pulsarlo para detenerla.
+6. Reproduce audio o entra en la reunión, pulsa `Alt+Shift+L` para iniciar la escucha y vuelve a pulsarlo para detenerla y procesar la pregunta.
+
+No existe fallback silencioso entre fuentes: si seleccionas una aplicación y deja de estar disponible, la sesión falla de forma visible y debes actualizar la lista o elegir conscientemente el audio completo del sistema.
 
 La primera transcripción local descarga el modelo fijado:
 
@@ -106,7 +110,9 @@ Consulta [PRIVACY.md](docs/PRIVACY.md) para el flujo de datos completo.
 
 ## Límites conocidos
 
-- Sólo captura la mezcla de salida global, no micrófono ni un proceso concreto.
+- No captura micrófono. Captura audio renderizado por Windows, ya sea la mezcla del dispositivo o el árbol de una aplicación.
+- El aislamiento por aplicación requiere Windows build 20348 o posterior y depende de cómo la aplicación publique sus sesiones de audio. La API oficial funciona con procesos de navegador y muchas aplicaciones, pero Microsoft tiene documentado que Teams de escritorio puede entregar silencio en este modo; usa **Todo el audio del sistema** para Teams.
+- Una aplicación sólo aparece en el selector mientras está ejecutándose y mantiene una sesión de audio. Inicia la reunión o reproduce audio y pulsa **Actualizar**.
 - WASAPI puede omitir audio protegido por DRM.
 - `WDA_EXCLUDEFROMCAPTURE` protege frente a APIs públicas que respetan DWM; no protege frente a una cámara física, drivers o software que eluda ese mecanismo.
 - Windows 10, ARM64, MSIX, firma de código, autoactualización y publicación de releases quedan fuera de esta primera versión.
