@@ -68,6 +68,8 @@
   <data name="SettingsSaveError" xml:space="preserve"><value>Settings could not be saved.</value></data>
   <data name="SettingsSaveInProgress" xml:space="preserve"><value>Settings are still being saved. Wait a few seconds and try exiting again.</value></data>
   <data name="SettingsLoadError" xml:space="preserve"><value>Some protected settings could not be read. Review the fields before saving.</value></data>
+  <data name="StartupFailedTitle" xml:space="preserve"><value>MirrorPowerAI could not start</value></data>
+  <data name="StartupFailedMessage" xml:space="preserve"><value>The application could not initialize its Windows components. Close any open instance and try again.</value></data>
   <data name="ApiKeyRequired" xml:space="preserve"><value>Enter a Gemini API key.</value></data>
   <data name="ConsentRequired" xml:space="preserve"><value>You must explicitly accept sending the recording before using Gemini Audio.</value></data>
   <data name="OverlayTitle" xml:space="preserve"><value>MirrorPowerAI response</value></data>

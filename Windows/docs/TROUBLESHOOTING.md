@@ -14,6 +14,10 @@ La instalación se realiza en `%USERPROFILE%\.dotnet` y no necesita Developer Mo
 
 Whisper local requiere Microsoft Visual C++ Redistributable 2015-2022 x64. Instala el paquete oficial de Microsoft y vuelve a ejecutar `Windows\preflight.ps1`.
 
+## La aplicación no puede inicializar sus componentes de Windows
+
+Cierra cualquier instancia de MirrorPowerAI, confirma en el Administrador de tareas que el proceso terminó y vuelve a abrir el portable completo. Si el mensaje reaparece, ejecuta `Windows\build.ps1 -ReleaseGate` desde el checkout: la aplicación libera los componentes creados parcialmente y no muestra ni registra detalles que puedan contener rutas o configuración del usuario.
+
 ## El runtime Whisper CPU x64 no carga
 
 Ejecuta `Windows\verify-whisper-runtime.ps1`. Si falla, confirma que estás usando el portable completo y no sólo el `.exe`, que la carpeta `runtimes\win-x64` conserva sus cuatro DLL y que el Visual C++ Redistributable x64 pasa `Windows\preflight.ps1`. No copies DLL desde otra versión ni desde una arquitectura diferente; vuelve a publicar con `Windows\build.ps1` para restaurar el inventario fijado.

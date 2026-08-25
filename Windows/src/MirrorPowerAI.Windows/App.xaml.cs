@@ -85,6 +85,26 @@ public partial class App : System.Windows.Application, IDisposable
         }
 
         var localization = LocalizationService.Current;
+        try
+        {
+            InitializeNormalApplication(localization);
+        }
+        catch (Exception)
+        {
+            StartupFailureRecovery.Handle(
+                DisposeResources,
+                () => System.Windows.MessageBox.Show(
+                    localization["StartupFailedMessage"],
+                    localization["StartupFailedTitle"],
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error),
+                () => Shutdown(1));
+        }
+    }
+
+    private void InitializeNormalApplication(LocalizationService localization)
+    {
+        ArgumentNullException.ThrowIfNull(localization);
         var dpiResult = DpiAwareness.TryEnablePerMonitorV2();
 
         if (!SingleInstanceGuard.TryAcquire(out _singleInstance))
