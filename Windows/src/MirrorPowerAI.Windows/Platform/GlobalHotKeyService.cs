@@ -48,10 +48,21 @@ public sealed class GlobalHotKeyService : IDisposable, IShellDiagnosticHotKeyRes
         };
 
         _messageWindow = new HwndSource(parameters);
-        _messageWindow.AddHook(WindowProcedure);
-
-        Registration = Register(_messageWindow.Handle, _hotKeyApi);
-        _registered = Registration.IsRegistered;
+        var hookAdded = false;
+        try
+        {
+            _messageWindow.AddHook(WindowProcedure);
+            hookAdded = true;
+            Registration = Register(_messageWindow.Handle, _hotKeyApi);
+            _registered = Registration.IsRegistered;
+        }
+        catch (Exception)
+        {
+            BestEffortCleanup.Run(
+                hookAdded ? () => _messageWindow.RemoveHook(WindowProcedure) : null,
+                () => _messageWindow.Dispose());
+            throw;
+        }
     }
 
     /// <summary>Raised on the WPF dispatcher when Alt+Shift+L is pressed.</summary>

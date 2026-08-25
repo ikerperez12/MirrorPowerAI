@@ -140,6 +140,24 @@ public sealed class Win32AdapterTests
     }
 
     [Fact]
+    public async Task GlobalHotKey_RegistrationThrows_ConstructorDestroysPartialMessageWindow()
+    {
+        await StaDispatcher.RunAsync(() =>
+        {
+            var native = new FakeGlobalHotKeyApi
+            {
+                RegisterException = new InvalidOperationException("simulated native failure"),
+            };
+
+            _ = Assert.Throws<InvalidOperationException>(() => new GlobalHotKeyService(native));
+
+            Assert.NotEqual(nint.Zero, native.LastWindowHandle);
+            Assert.False(NativeMethods.IsWindow(native.LastWindowHandle));
+            return Task.CompletedTask;
+        });
+    }
+
+    [Fact]
     public void SingleInstance_AcquiredMutex_ReleasesAndDisposesOnce()
     {
         var mutex = new FakeInstanceMutex { AcquireResult = true };
@@ -217,6 +235,8 @@ public sealed class Win32AdapterTests
     {
         public bool RegisterResult { get; init; }
 
+        public Exception? RegisterException { get; init; }
+
         public int LastError { get; init; }
 
         public nint LastWindowHandle { get; private set; }
@@ -243,6 +263,11 @@ public sealed class Win32AdapterTests
             LastIdentifier = identifier;
             LastModifiers = modifiers;
             LastVirtualKey = virtualKey;
+            if (RegisterException is not null)
+            {
+                throw RegisterException;
+            }
+
             return RegisterResult;
         }
 
