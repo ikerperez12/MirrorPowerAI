@@ -195,6 +195,59 @@ public sealed class MainWindowSecretPersistenceTests
         });
     }
 
+    [Fact]
+    public async Task SaveAsync_ActiveSave_DisablesEditingAndPreventsDismissalUntilComplete()
+    {
+        var settingsStore = new BlockingSettingsStore();
+        var secretStore = new RecordingSecretStore();
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var window = CreateWindow(settingsStore, secretStore);
+            window.Show();
+            Task? saveTask = null;
+
+            try
+            {
+                saveTask = window.SaveAsync();
+                await settingsStore.SaveEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+                Assert.True(window.IsSaving);
+                Assert.False(GetPasswordBox(window, "ApiKeyBox").IsEnabled);
+                Assert.False(GetTextBox(window, "ContextBox").IsEnabled);
+                Assert.False(GetComboBox(window, "ProviderBox").IsEnabled);
+                Assert.False(GetButton(window, "SaveButtonControl").IsEnabled);
+                Assert.False(GetButton(window, "CancelButtonControl").IsEnabled);
+
+                window.Close();
+                Assert.True(window.IsVisible);
+
+                GetButton(window, "CancelButtonControl").RaiseEvent(
+                    new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.True(window.IsVisible);
+
+                settingsStore.ReleaseFirstSave();
+                await saveTask;
+
+                Assert.False(window.IsSaving);
+                Assert.True(GetPasswordBox(window, "ApiKeyBox").IsEnabled);
+                Assert.True(GetComboBox(window, "ProviderBox").IsEnabled);
+                Assert.True(GetButton(window, "SaveButtonControl").IsEnabled);
+                Assert.True(GetButton(window, "CancelButtonControl").IsEnabled);
+            }
+            finally
+            {
+                settingsStore.ReleaseFirstSave();
+                if (saveTask is not null)
+                {
+                    await saveTask;
+                }
+
+                window.CloseForApplicationExit();
+            }
+        });
+    }
+
     private static MainWindow CreateWindow(IAppSettingsStore settingsStore, ISecretStore secretStore) => new(
         settingsStore,
         secretStore,
@@ -209,6 +262,9 @@ public sealed class MainWindowSecretPersistenceTests
 
     private static ComboBox GetComboBox(MainWindow window, string name) =>
         Assert.IsType<ComboBox>(window.FindName(name));
+
+    private static Button GetButton(MainWindow window, string name) =>
+        Assert.IsType<Button>(window.FindName(name));
 
     private sealed class TestAudioDeviceCatalog : IAudioDeviceCatalog
     {

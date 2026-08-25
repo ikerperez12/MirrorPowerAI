@@ -479,6 +479,14 @@ public partial class App : System.Windows.Application, IDisposable
             return;
         }
 
+        if (_settingsWindow.IsSaving)
+        {
+            BestEffortCleanup.Run(
+                () => _settingsWindow.Activate(),
+                () => _trayIcon?.ShowInformation(LocalizationService.Current["SettingsSaveInProgress"]));
+            return;
+        }
+
         _overlayPresenter?.Close();
         _lastDisplayedAnswer = null;
 

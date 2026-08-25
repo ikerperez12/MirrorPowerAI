@@ -125,10 +125,12 @@
         <WrapPanel Grid.Row="2"
                    Margin="0,12,0,0"
                    HorizontalAlignment="Right">
-            <Button IsDefault="True"
+            <Button x:Name="SaveButtonControl"
+                    IsDefault="True"
                     Click="OnSaveClick"
                     Content="{loc:Loc SaveButton}" />
-            <Button IsCancel="True"
+            <Button x:Name="CancelButtonControl"
+                    IsCancel="True"
                     Click="OnCancelClick"
                     Content="{loc:Loc CancelButton}" />
         </WrapPanel>

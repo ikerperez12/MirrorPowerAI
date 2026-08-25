@@ -24,6 +24,7 @@ Haz una copia local de esta plantilla dentro de `Windows\artifacts\qa-evidence\`
 | Inventario del portable | `./Windows/verify-provenance.ps1` | Pendiente | |
 | Bandeja, mutex y hotkey | `./Windows/verify-shell.ps1` | Pendiente | |
 | Ciclo WPF, UI Automation y limpieza | `./Windows/verify-ui.ps1` | Pendiente | |
+| Exclusión mutua de guardado, cierre y recarga de configuración | Prueba manual de **Guardar**, **Cancelar**, **X** y bandeja | Pendiente | |
 | WASAPI con muestras | `./Windows/verify-wasapi.ps1` | Pendiente | |
 | WASAPI con señal autorizada | `./Windows/verify-wasapi.ps1 -RequireAudibleSignal` | Pendiente / no aplicable | |
 | Suite xUnit y cobertura | `./Windows/test.ps1` | Pendiente | |

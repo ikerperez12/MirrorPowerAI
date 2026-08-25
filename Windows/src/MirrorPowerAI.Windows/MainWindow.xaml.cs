@@ -409,7 +409,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        IsSaving = true;
+        SetSavingState(isSaving: true);
+        ShowStatus(_localization["SettingsSaving"], isError: false);
         var saveCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _activeSaveCompletion = saveCompletion;
         try
@@ -472,7 +473,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            IsSaving = false;
+            SetSavingState(isSaving: false);
             if (ReferenceEquals(_activeSaveCompletion, saveCompletion))
             {
                 _activeSaveCompletion = null;
@@ -484,7 +485,26 @@ public partial class MainWindow : Window
 
     private async void OnSaveClick(object sender, RoutedEventArgs eventArgs) => await SaveAsync();
 
-    private void OnCancelClick(object sender, RoutedEventArgs eventArgs) => Hide();
+    private void OnCancelClick(object sender, RoutedEventArgs eventArgs)
+    {
+        if (!IsSaving)
+        {
+            Hide();
+        }
+    }
+
+    private void SetSavingState(bool isSaving)
+    {
+        IsSaving = isSaving;
+        ApiKeyBox.IsEnabled = !isSaving;
+        ContextBox.IsEnabled = !isSaving;
+        ProviderBox.IsEnabled = !isSaving;
+        LanguageBox.IsEnabled = !isSaving;
+        DeviceBox.IsEnabled = !isSaving;
+        CloudConsentBox.IsEnabled = !isSaving;
+        SaveButtonControl.IsEnabled = !isSaving;
+        CancelButtonControl.IsEnabled = !isSaving;
+    }
 
     private void OnProviderSelectionChanged(object sender, SelectionChangedEventArgs eventArgs)
     {
@@ -598,7 +618,10 @@ public partial class MainWindow : Window
         }
 
         eventArgs.Cancel = true;
-        Hide();
+        if (!IsSaving)
+        {
+            Hide();
+        }
     }
 
     /// <inheritdoc />

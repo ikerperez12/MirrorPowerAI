@@ -10,6 +10,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 - [ ] Abrir la aplicación normal y comprobar visualmente el icono de la bandeja y su menú mediante teclado.
 - [ ] Pulsar físicamente `Alt+Shift+L` para iniciar/detener una sesión y comprobar que al salir no queda icono ni proceso residual.
 - [ ] Pulsar **Salir** inmediatamente después de **Guardar**: la aplicación espera el guardado; si supera 15 segundos permanece abierta, avisa sin datos sensibles y permite reintentar sin dejar configuración temporal ni cerrar dependencias en uso.
+- [ ] Mientras **Guardar** está activo, los campos y botones quedan deshabilitados; **Cancelar**, la **X** y una nueva petición de Configuración desde la bandeja no ocultan ni recargan valores parciales. Al terminar, los controles vuelven a estar disponibles y el estado se anuncia.
 - [ ] Durante una sesión, verificar que los cambios `Capturando`, `Procesando`, `Error` y regreso a `Preparado` ofrecen feedback de bandeja genérico y localizado, sin API key, contexto, audio, pregunta, respuesta ni detalle del proveedor; el arranque inicial en `Preparado` debe permanecer silencioso.
 
 ## Captura y exclusión del overlay

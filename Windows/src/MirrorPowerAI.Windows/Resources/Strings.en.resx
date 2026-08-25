@@ -65,6 +65,7 @@
   <data name="SaveButton" xml:space="preserve"><value>Save</value></data>
   <data name="CancelButton" xml:space="preserve"><value>Cancel</value></data>
   <data name="SettingsSaved" xml:space="preserve"><value>Settings saved.</value></data>
+  <data name="SettingsSaving" xml:space="preserve"><value>Saving protected settings…</value></data>
   <data name="SettingsSaveError" xml:space="preserve"><value>Settings could not be saved.</value></data>
   <data name="SettingsSaveInProgress" xml:space="preserve"><value>Settings are still being saved. Wait a few seconds and try exiting again.</value></data>
   <data name="SettingsLoadError" xml:space="preserve"><value>Some protected settings could not be read. Review the fields before saving.</value></data>
