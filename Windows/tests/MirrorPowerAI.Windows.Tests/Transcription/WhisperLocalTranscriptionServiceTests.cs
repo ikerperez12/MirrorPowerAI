@@ -63,6 +63,96 @@ public sealed class WhisperLocalTranscriptionServiceTests
     }
 
     [Fact]
+    public async Task TranscribeAsync_DurationMetadataUnderstatesWave_FailsBeforeModelAccess()
+    {
+        var modelProvider = new FakeModelLeaseProvider();
+        var service = CreateService(modelProvider, new FakeInferenceEngine("unused"));
+        using var validAudio = CreateAudio(containsAudibleSignal: true);
+        using var inconsistentAudio = new CapturedAudio(
+            validAudio.WavData,
+            TimeSpan.Zero,
+            containsAudibleSignal: true);
+
+        var exception = await Assert.ThrowsAsync<WhisperTranscriptionException>(
+            () => service.TranscribeAsync(inconsistentAudio, "es"));
+
+        Assert.Equal(WhisperTranscriptionFailure.InvalidAudio, exception.Failure);
+        Assert.Equal(0, modelProvider.CallCount);
+    }
+
+    [Theory]
+    [InlineData(4, 0)]
+    [InlineData(28, 1)]
+    [InlineData(32, 1)]
+    public async Task TranscribeAsync_InconsistentWaveHeader_FailsBeforeModelAccess(
+        int headerOffset,
+        byte corruptValue)
+    {
+        var modelProvider = new FakeModelLeaseProvider();
+        var service = CreateService(modelProvider, new FakeInferenceEngine("unused"));
+        using var validAudio = CreateAudio(containsAudibleSignal: true);
+        var corruptedWave = validAudio.WavData.ToArray();
+        corruptedWave[headerOffset] = corruptValue;
+        using var corruptedAudio = new CapturedAudio(
+            corruptedWave,
+            validAudio.Duration,
+            containsAudibleSignal: true);
+
+        var exception = await Assert.ThrowsAsync<WhisperTranscriptionException>(
+            () => service.TranscribeAsync(corruptedAudio, "es"));
+
+        Assert.Equal(WhisperTranscriptionFailure.InvalidAudio, exception.Failure);
+        Assert.Equal(0, modelProvider.CallCount);
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_EmptyNormalizedWaveMarkedAudible_FailsBeforeModelAccess()
+    {
+        var modelProvider = new FakeModelLeaseProvider();
+        var service = CreateService(modelProvider, new FakeInferenceEngine("unused"));
+        var normalized = new Pcm16WaveConverter().Convert(
+            ReadOnlySpan<byte>.Empty,
+            new AudioSampleFormat(16_000, 1, 16, AudioSampleEncoding.PcmInteger));
+        using var audio = new CapturedAudio(
+            normalized.WavData,
+            normalized.Duration,
+            containsAudibleSignal: true);
+
+        var exception = await Assert.ThrowsAsync<WhisperTranscriptionException>(
+            () => service.TranscribeAsync(audio, "es"));
+
+        Assert.Equal(WhisperTranscriptionFailure.InvalidAudio, exception.Failure);
+        Assert.Equal(0, modelProvider.CallCount);
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_WaveLongerThanFiveMinutes_FailsBeforeModelAccess()
+    {
+        const int oversizedPcmLength = (16_000 * sizeof(short) * 300) + sizeof(short);
+        var modelProvider = new FakeModelLeaseProvider();
+        var service = CreateService(modelProvider, new FakeInferenceEngine("unused"));
+        using var validAudio = CreateAudio(containsAudibleSignal: true);
+        var oversizedWave = new byte[44 + oversizedPcmLength];
+        validAudio.WavData.Span[..44].CopyTo(oversizedWave);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(
+            oversizedWave.AsSpan(4, sizeof(uint)),
+            36 + oversizedPcmLength);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(
+            oversizedWave.AsSpan(40, sizeof(uint)),
+            oversizedPcmLength);
+        using var oversizedAudio = new CapturedAudio(
+            oversizedWave,
+            TimeSpan.FromSeconds((oversizedPcmLength / sizeof(short)) / 16_000d),
+            containsAudibleSignal: true);
+
+        var exception = await Assert.ThrowsAsync<WhisperTranscriptionException>(
+            () => service.TranscribeAsync(oversizedAudio, "es"));
+
+        Assert.Equal(WhisperTranscriptionFailure.InvalidAudio, exception.Failure);
+        Assert.Equal(0, modelProvider.CallCount);
+    }
+
+    [Fact]
     public async Task TranscribeAsync_AutoLanguage_PassesExplicitAutoSelection()
     {
         // Arrange

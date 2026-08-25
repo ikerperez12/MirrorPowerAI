@@ -7,6 +7,7 @@
 - Sin reintentos automáticos de peticiones POST a Gemini.
 - Respuestas externas renderizadas únicamente como texto plano.
 - Modelo Whisper descargado con URL fijada, escritura atómica, tamaño y SHA-256 verificados.
+- Whisper local valida la estructura RIFF/PCM completa y deriva la duración de los propios datos; rechaza cabeceras, metadatos o payloads que intenten eludir el límite de cinco minutos.
 - Dependencias NuGet con versiones centrales exactas y lockfiles.
 - Restore bloqueado en build/CI y auditoría NuGet para severidad alta/crítica.
 - GitHub Actions fijadas a SHA de commit y permisos mínimos (`contents: read`).

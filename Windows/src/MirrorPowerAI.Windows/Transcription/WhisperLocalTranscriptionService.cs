@@ -83,7 +83,9 @@ public sealed class WhisperLocalTranscriptionService : ITranscriptionService
                 "No se ha detectado audio audible para transcribir.");
         }
 
-        if (audio.Duration > MaximumAudioDuration || !IsNormalizedWave(audio.WavData.Span))
+        if (!TryGetNormalizedWaveDuration(audio.WavData.Span, out var waveDuration)
+            || waveDuration > MaximumAudioDuration
+            || audio.Duration != waveDuration)
         {
             throw new WhisperTranscriptionException(
                 WhisperTranscriptionFailure.InvalidAudio,
@@ -148,8 +150,9 @@ public sealed class WhisperLocalTranscriptionService : ITranscriptionService
         return normalized;
     }
 
-    private static bool IsNormalizedWave(ReadOnlySpan<byte> wave)
+    private static bool TryGetNormalizedWaveDuration(ReadOnlySpan<byte> wave, out TimeSpan duration)
     {
+        duration = default;
         if (wave.Length < WaveHeaderLength
             || !wave[..4].SequenceEqual("RIFF"u8)
             || !wave[8..12].SequenceEqual("WAVE"u8)
@@ -159,19 +162,35 @@ public sealed class WhisperLocalTranscriptionService : ITranscriptionService
             return false;
         }
 
+        var riffChunkSize = BinaryPrimitives.ReadUInt32LittleEndian(wave[4..8]);
         var formatChunkSize = BinaryPrimitives.ReadUInt32LittleEndian(wave[16..20]);
         var formatTag = BinaryPrimitives.ReadUInt16LittleEndian(wave[20..22]);
         var channels = BinaryPrimitives.ReadUInt16LittleEndian(wave[22..24]);
         var sampleRate = BinaryPrimitives.ReadUInt32LittleEndian(wave[24..28]);
+        var byteRate = BinaryPrimitives.ReadUInt32LittleEndian(wave[28..32]);
+        var blockAlign = BinaryPrimitives.ReadUInt16LittleEndian(wave[32..34]);
         var bitsPerSample = BinaryPrimitives.ReadUInt16LittleEndian(wave[34..36]);
         var declaredDataLength = BinaryPrimitives.ReadUInt32LittleEndian(wave[40..44]);
+        const uint expectedBlockAlign = CapturedAudio.Channels * (CapturedAudio.BitsPerSample / 8);
+        const uint expectedByteRate = CapturedAudio.SampleRate * expectedBlockAlign;
 
-        return formatChunkSize == 16
-            && formatTag == 1
-            && channels == CapturedAudio.Channels
-            && sampleRate == CapturedAudio.SampleRate
-            && bitsPerSample == CapturedAudio.BitsPerSample
-            && declaredDataLength == wave.Length - WaveHeaderLength
-            && declaredDataLength % sizeof(short) == 0;
+        if (riffChunkSize != wave.Length - 8
+            || formatChunkSize != 16
+            || formatTag != 1
+            || channels != CapturedAudio.Channels
+            || sampleRate != CapturedAudio.SampleRate
+            || byteRate != expectedByteRate
+            || blockAlign != expectedBlockAlign
+            || bitsPerSample != CapturedAudio.BitsPerSample
+            || declaredDataLength == 0
+            || declaredDataLength != wave.Length - WaveHeaderLength
+            || declaredDataLength % expectedBlockAlign != 0)
+        {
+            return false;
+        }
+
+        var sampleFrames = declaredDataLength / expectedBlockAlign;
+        duration = TimeSpan.FromSeconds(sampleFrames / (double)CapturedAudio.SampleRate);
+        return true;
     }
 }
