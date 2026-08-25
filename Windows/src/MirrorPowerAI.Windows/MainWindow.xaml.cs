@@ -37,6 +37,7 @@ public partial class MainWindow : Window
     private readonly IAppSettingsStore _settingsStore;
     private readonly ISecretStore _secretStore;
     private readonly IAudioDeviceCatalog _audioDeviceCatalog;
+    private readonly IAudioApplicationCatalog _audioApplicationCatalog;
     private readonly LocalizationService _localization;
     private readonly IGeminiAudioConsentGate _geminiAudioConsentGate;
     private readonly bool _ownsGeminiAudioConsentGate;
@@ -63,16 +64,19 @@ public partial class MainWindow : Window
     /// <param name="audioDeviceCatalog">Available output-device source.</param>
     /// <param name="localization">Live localized string source.</param>
     /// <param name="geminiAudioConsentGate">Shared process-level fail-closed Gemini Audio privacy barrier.</param>
+    /// <param name="audioApplicationCatalog">Running applications with render-audio sessions.</param>
     public MainWindow(
         IAppSettingsStore settingsStore,
         ISecretStore secretStore,
         IAudioDeviceCatalog audioDeviceCatalog,
         LocalizationService localization,
-        IGeminiAudioConsentGate? geminiAudioConsentGate = null)
+        IGeminiAudioConsentGate? geminiAudioConsentGate = null,
+        IAudioApplicationCatalog? audioApplicationCatalog = null)
     {
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
         _secretStore = secretStore ?? throw new ArgumentNullException(nameof(secretStore));
         _audioDeviceCatalog = audioDeviceCatalog ?? throw new ArgumentNullException(nameof(audioDeviceCatalog));
+        _audioApplicationCatalog = audioApplicationCatalog ?? new EmptyAudioApplicationCatalog();
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _geminiAudioConsentGate = geminiAudioConsentGate ?? new GeminiAudioConsentGate();
         _ownsGeminiAudioConsentGate = geminiAudioConsentGate is null;
@@ -118,6 +122,7 @@ public partial class MainWindow : Window
         {
             var persistedSettings = await _settingsStore.LoadAsync(cancellationToken);
             var devices = await GetOutputDevicesSafelyAsync(cancellationToken);
+            var applications = await GetAudioApplicationsSafelyAsync(cancellationToken);
             var apiKey = await ReadSecretSafelyAsync(GeminiApiKeySecretName, cancellationToken);
             var context = await ReadSecretSafelyAsync(ProjectContextSecretName, cancellationToken);
             _apiKeyWasRead = apiKey.WasRead;
@@ -130,10 +135,16 @@ public partial class MainWindow : Window
             PopulateProviderOptions(settings.TranscriptionProvider);
             PopulateLanguageOptions(settings.Language);
             PopulateDeviceOptions(devices, settings.AudioDeviceId);
+            PopulateAudioSourceOptions(settings.AudioCaptureSource);
+            PopulateApplicationOptions(
+                applications,
+                settings.AudioProcessName,
+                settings.AudioProcessId);
             CloudConsentBox.IsChecked =
                 settings.GeminiAudioConsentVersion == CurrentGeminiAudioConsentVersion &&
                 settings.GeminiAudioConsentGrantedAtUtc is not null;
             UpdateConsentVisibility();
+            UpdateAudioSourceVisibility();
 
             if (!apiKey.WasRead || !context.WasRead)
             {
@@ -174,6 +185,20 @@ public partial class MainWindow : Window
             return [new AudioDeviceOption(
                 AudioDeviceOption.DefaultDeviceId,
                 _localization["DefaultAudioDevice"])];
+        }
+    }
+
+    private async Task<IReadOnlyList<AudioApplicationOption>> GetAudioApplicationsSafelyAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _audioApplicationCatalog.GetAudioApplicationsAsync(cancellationToken);
+        }
+        catch (Exception exception) when (
+            exception is COMException or AudioCaptureException or InvalidOperationException)
+        {
+            return [];
         }
     }
 
@@ -356,6 +381,58 @@ public partial class MainWindow : Window
         }
     }
 
+    private void PopulateAudioSourceOptions(string selectedId)
+    {
+        CaptureSourceBox.ItemsSource = new[]
+        {
+            new LocalizedOption(AudioCaptureSources.SystemOutput, _localization["AudioSourceSystem"]),
+            new LocalizedOption(AudioCaptureSources.Application, _localization["AudioSourceApplication"]),
+        };
+        CaptureSourceBox.SelectedValue = selectedId;
+        if (CaptureSourceBox.SelectedIndex < 0)
+        {
+            CaptureSourceBox.SelectedIndex = 0;
+        }
+    }
+
+    private void PopulateApplicationOptions(
+        IReadOnlyList<AudioApplicationOption> applications,
+        string selectedProcessName,
+        int? selectedProcessId)
+    {
+        var options = applications.ToList();
+        var selected = options.FirstOrDefault(application =>
+                application.ProcessId == selectedProcessId &&
+                string.Equals(
+                    application.ProcessName,
+                    selectedProcessName,
+                    StringComparison.OrdinalIgnoreCase))
+            ?? options.FirstOrDefault(application => string.Equals(
+                application.ProcessName,
+                selectedProcessName,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (selected is null && !string.IsNullOrWhiteSpace(selectedProcessName))
+        {
+            selected = new AudioApplicationOption(
+                selectedProcessId.GetValueOrDefault(),
+                selectedProcessName,
+                $"{_localization["AudioApplicationUnavailable"]} ({selectedProcessName}.exe)");
+            options.Insert(0, selected);
+        }
+
+        if (options.Count == 0)
+        {
+            options.Add(new AudioApplicationOption(
+                0,
+                string.Empty,
+                _localization["NoAudioApplications"]));
+        }
+
+        ApplicationBox.ItemsSource = options;
+        ApplicationBox.SelectedItem = selected ?? options.FirstOrDefault();
+    }
+
     private void PopulateDeviceOptions(IReadOnlyList<AudioDeviceOption> devices, string selectedId)
     {
         var options = devices
@@ -393,6 +470,18 @@ public partial class MainWindow : Window
 
         HideStatus();
         var provider = ProviderBox.SelectedValue as string ?? TranscriptionProviders.LocalWhisper;
+        var audioCaptureSource = CaptureSourceBox.SelectedValue as string ?? AudioCaptureSources.SystemOutput;
+        var selectedApplication = ApplicationBox.SelectedItem as AudioApplicationOption;
+        if (audioCaptureSource == AudioCaptureSources.Application &&
+            (selectedApplication is null ||
+             selectedApplication.ProcessId <= 0 ||
+             string.IsNullOrWhiteSpace(selectedApplication.ProcessName)))
+        {
+            ShowStatus(_localization["AudioApplicationRequired"], isError: true);
+            ApplicationBox.Focus();
+            return;
+        }
+
         var hasCloudConsent = CloudConsentBox.IsChecked == true;
         var hasExplicitCloudConsent = provider == TranscriptionProviders.GeminiAudio && hasCloudConsent;
         if (!hasExplicitCloudConsent)
@@ -429,6 +518,13 @@ public partial class MainWindow : Window
                 TranscriptionProvider = provider,
                 Language = LanguageBox.SelectedValue as string ?? "es",
                 AudioDeviceId = DeviceBox.SelectedValue as string ?? AudioDeviceOption.DefaultDeviceId,
+                AudioCaptureSource = audioCaptureSource,
+                AudioProcessName = audioCaptureSource == AudioCaptureSources.Application
+                    ? selectedApplication!.ProcessName
+                    : string.Empty,
+                AudioProcessId = audioCaptureSource == AudioCaptureSources.Application
+                    ? selectedApplication!.ProcessId
+                    : null,
                 GeminiModel = _persistedSettings.GeminiModel,
                 GeminiAudioConsentVersion = provider == TranscriptionProviders.GeminiAudio && hasCloudConsent
                     ? CurrentGeminiAudioConsentVersion
@@ -461,9 +557,16 @@ public partial class MainWindow : Window
 
             _localization.SetLanguage(settings.Language);
             var deviceOptions = (DeviceBox.ItemsSource as IEnumerable<AudioDeviceOption>)?.ToList() ?? [];
+            var applicationOptions = (ApplicationBox.ItemsSource as IEnumerable<AudioApplicationOption>)?.ToList() ?? [];
             PopulateProviderOptions(settings.TranscriptionProvider);
             PopulateLanguageOptions(settings.Language);
             PopulateDeviceOptions(deviceOptions, settings.AudioDeviceId);
+            PopulateAudioSourceOptions(settings.AudioCaptureSource);
+            PopulateApplicationOptions(
+                applicationOptions,
+                settings.AudioProcessName,
+                settings.AudioProcessId);
+            UpdateAudioSourceVisibility();
             ShowStatus(_localization["SettingsSaved"], isError: false);
             SettingsSaved?.Invoke(this, new SettingsSavedEventArgs(settings));
         }
@@ -501,6 +604,9 @@ public partial class MainWindow : Window
         ProviderBox.IsEnabled = !isSaving;
         LanguageBox.IsEnabled = !isSaving;
         DeviceBox.IsEnabled = !isSaving;
+        CaptureSourceBox.IsEnabled = !isSaving;
+        ApplicationBox.IsEnabled = !isSaving;
+        RefreshApplicationsButton.IsEnabled = !isSaving;
         CloudConsentBox.IsEnabled = !isSaving;
         SaveButtonControl.IsEnabled = !isSaving;
         CancelButtonControl.IsEnabled = !isSaving;
@@ -514,11 +620,49 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnAudioSourceSelectionChanged(object sender, SelectionChangedEventArgs eventArgs)
+    {
+        if (!_isLoading)
+        {
+            UpdateAudioSourceVisibility();
+        }
+    }
+
+    private async void OnRefreshApplicationsClick(object sender, RoutedEventArgs eventArgs)
+    {
+        if (IsSaving)
+        {
+            return;
+        }
+
+        var selected = ApplicationBox.SelectedItem as AudioApplicationOption;
+        RefreshApplicationsButton.IsEnabled = false;
+        try
+        {
+            var applications = await GetAudioApplicationsSafelyAsync(CancellationToken.None);
+            PopulateApplicationOptions(
+                applications,
+                selected?.ProcessName ?? string.Empty,
+                selected?.ProcessId);
+        }
+        finally
+        {
+            RefreshApplicationsButton.IsEnabled = true;
+        }
+    }
+
     private void UpdateConsentVisibility()
     {
         CloudConsentGroup.Visibility = ProviderBox.SelectedValue as string == TranscriptionProviders.GeminiAudio
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
+
+    private void UpdateAudioSourceVisibility()
+    {
+        var captureApplication = CaptureSourceBox.SelectedValue as string == AudioCaptureSources.Application;
+        SystemOutputPanel.Visibility = captureApplication ? Visibility.Collapsed : Visibility.Visible;
+        ApplicationOutputPanel.Visibility = captureApplication ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ShowStatus(string message, bool isError)

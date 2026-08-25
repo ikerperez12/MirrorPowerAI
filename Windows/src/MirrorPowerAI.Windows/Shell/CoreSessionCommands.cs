@@ -1,5 +1,6 @@
 using System.IO;
 using System.Security.Cryptography;
+using MirrorPowerAI.Core.Audio;
 using MirrorPowerAI.Core.Answers;
 using MirrorPowerAI.Core.Gemini;
 using MirrorPowerAI.Core.Privacy;
@@ -27,7 +28,7 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private SessionSnapshot _snapshot = new(ShellActivityState.Idle);
     private SessionController? _controller;
-    private WasapiLoopbackAudioCaptureService? _audioCaptureService;
+    private IAudioCaptureService? _audioCaptureService;
     private bool _disposed;
 
     /// <summary>Initializes the Core session bridge with long-lived provider dependencies.</summary>
@@ -81,6 +82,12 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
             Publish(new SessionSnapshot(
                 ShellActivityState.Error,
                 UserMessage: "SessionUnexpectedError"));
+        }
+        catch (Exception exception) when (exception is AudioCaptureException or PlatformNotSupportedException)
+        {
+            Publish(new SessionSnapshot(
+                ShellActivityState.Error,
+                UserMessage: "SessionAudioSourceUnavailable"));
         }
         finally
         {
@@ -175,7 +182,7 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
             _geminiClient,
             () => consent,
             () => _geminiAudioConsentGate.TryAuthorize(consent));
-        var audioCapture = CreateAudioCapture(options.OutputDeviceId);
+        var audioCapture = CreateAudioCapture(settings, options.OutputDeviceId);
         var controller = new SessionController(
             audioCapture,
             [_localTranscriptionService, geminiTranscription],
@@ -194,14 +201,36 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
             ? new GeminiAudioConsent(settings.GeminiAudioConsentVersion, grantedAtUtc)
             : null;
 
-    private static WasapiLoopbackAudioCaptureService CreateAudioCapture(string? outputDeviceId) =>
-        new(
+    private static WasapiLoopbackAudioCaptureService CreateAudioCapture(
+        AppSettings settings,
+        string? outputDeviceId)
+    {
+        if (settings.AudioCaptureSource == AudioCaptureSources.Application)
+        {
+            if (string.IsNullOrWhiteSpace(settings.AudioProcessName))
+            {
+                throw new AudioCaptureException(
+                    AudioCaptureFailure.DeviceUnavailable,
+                    "No audio application is selected.");
+            }
+
+            return new WasapiLoopbackAudioCaptureService(
+                new ProcessAudioEndpointProvider(settings.AudioProcessName, settings.AudioProcessId),
+                new ProcessLoopbackCaptureSessionFactory(),
+                new Pcm16WaveConverter(),
+                new SystemCaptureTimer(),
+                requestedDeviceId: null,
+                maximumDuration: MirrorPowerAI.Core.Configuration.MirrorPowerAIOptions.CaptureDurationLimit);
+        }
+
+        return new WasapiLoopbackAudioCaptureService(
             new NAudioEndpointProvider(),
             new NAudioLoopbackCaptureSessionFactory(),
             new Pcm16WaveConverter(),
             new SystemCaptureTimer(),
             outputDeviceId,
             MirrorPowerAI.Core.Configuration.MirrorPowerAIOptions.CaptureDurationLimit);
+    }
 
     private void OnControllerStateChanged(object? sender, MirrorPowerAI.Core.Sessions.SessionStateChangedEventArgs eventArgs)
     {
@@ -259,9 +288,13 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
 
         var audioCapture = _audioCaptureService;
         _audioCaptureService = null;
-        if (audioCapture is not null)
+        if (audioCapture is IAsyncDisposable asyncDisposableCapture)
         {
-            await audioCapture.DisposeAsync().ConfigureAwait(false);
+            await asyncDisposableCapture.DisposeAsync().ConfigureAwait(false);
+        }
+        else if (audioCapture is IDisposable disposableCapture)
+        {
+            disposableCapture.Dispose();
         }
     }
 }

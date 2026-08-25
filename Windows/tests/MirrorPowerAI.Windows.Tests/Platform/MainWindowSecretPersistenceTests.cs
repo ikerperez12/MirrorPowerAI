@@ -150,6 +150,64 @@ public sealed class MainWindowSecretPersistenceTests
     }
 
     [Fact]
+    public async Task ReloadAsync_ApplicationCaptureSelection_IsVisibleAndPersistsExactApplication()
+    {
+        using var testDirectory = new TemporaryDirectory();
+        var settingsStore = new JsonSettingsStore(Path.Combine(testDirectory.Path, "settings.json"));
+        var secretStore = new RecordingSecretStore();
+        var application = new AudioApplicationOption(4242, "discord", "Discord");
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var window = CreateWindow(
+                settingsStore,
+                secretStore,
+                new TestAudioApplicationCatalog(application));
+
+            await window.ReloadAsync();
+            Assert.Equal(Visibility.Visible, GetPanel(window, "SystemOutputPanel").Visibility);
+            Assert.Equal(Visibility.Collapsed, GetPanel(window, "ApplicationOutputPanel").Visibility);
+
+            GetComboBox(window, "CaptureSourceBox").SelectedValue = AudioCaptureSources.Application;
+            Assert.Equal(Visibility.Collapsed, GetPanel(window, "SystemOutputPanel").Visibility);
+            Assert.Equal(Visibility.Visible, GetPanel(window, "ApplicationOutputPanel").Visibility);
+
+            await window.SaveAsync();
+
+            var saved = await settingsStore.LoadAsync();
+            Assert.Equal(AudioCaptureSources.Application, saved.AudioCaptureSource);
+            Assert.Equal(application.ProcessName, saved.AudioProcessName);
+            Assert.Equal(application.ProcessId, saved.AudioProcessId);
+        });
+    }
+
+    [Fact]
+    public async Task SaveAsync_ApplicationCaptureWithoutRunningSelection_FailsClosedWithoutPersisting()
+    {
+        using var testDirectory = new TemporaryDirectory();
+        var settingsPath = Path.Combine(testDirectory.Path, "settings.json");
+        var settingsStore = new JsonSettingsStore(settingsPath);
+        var secretStore = new RecordingSecretStore();
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var window = CreateWindow(settingsStore, secretStore);
+
+            await window.ReloadAsync();
+            GetComboBox(window, "CaptureSourceBox").SelectedValue = AudioCaptureSources.Application;
+            await window.SaveAsync();
+
+            Assert.False(File.Exists(settingsPath));
+            Assert.Empty(secretStore.Mutations);
+            Assert.Equal(Visibility.Visible, GetTextBlock(window, "StatusText").Visibility);
+            Assert.Contains(
+                LocalizationService.Current["AudioApplicationRequired"],
+                GetTextBlock(window, "StatusText").Text,
+                StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
     public async Task TryPrepareForApplicationExitAsync_ActiveSave_WaitsAndPreventsAnotherSave()
     {
         var settingsStore = new BlockingSettingsStore();
@@ -248,11 +306,15 @@ public sealed class MainWindowSecretPersistenceTests
         });
     }
 
-    private static MainWindow CreateWindow(IAppSettingsStore settingsStore, ISecretStore secretStore) => new(
-        settingsStore,
-        secretStore,
-        new TestAudioDeviceCatalog(),
-        LocalizationService.Current);
+    private static MainWindow CreateWindow(
+        IAppSettingsStore settingsStore,
+        ISecretStore secretStore,
+        IAudioApplicationCatalog? audioApplicationCatalog = null) => new(
+            settingsStore,
+            secretStore,
+            new TestAudioDeviceCatalog(),
+            LocalizationService.Current,
+            audioApplicationCatalog: audioApplicationCatalog);
 
     private static PasswordBox GetPasswordBox(MainWindow window, string name) =>
         Assert.IsType<PasswordBox>(window.FindName(name));
@@ -260,11 +322,17 @@ public sealed class MainWindowSecretPersistenceTests
     private static TextBox GetTextBox(MainWindow window, string name) =>
         Assert.IsType<TextBox>(window.FindName(name));
 
+    private static TextBlock GetTextBlock(MainWindow window, string name) =>
+        Assert.IsType<TextBlock>(window.FindName(name));
+
     private static ComboBox GetComboBox(MainWindow window, string name) =>
         Assert.IsType<ComboBox>(window.FindName(name));
 
     private static Button GetButton(MainWindow window, string name) =>
         Assert.IsType<Button>(window.FindName(name));
+
+    private static StackPanel GetPanel(MainWindow window, string name) =>
+        Assert.IsType<StackPanel>(window.FindName(name));
 
     private sealed class TestAudioDeviceCatalog : IAudioDeviceCatalog
     {
@@ -277,6 +345,17 @@ public sealed class MainWindowSecretPersistenceTests
                 new AudioDeviceOption("test-device", "Test device"),
             ];
             return Task.FromResult(devices);
+        }
+    }
+
+    private sealed class TestAudioApplicationCatalog(AudioApplicationOption application)
+        : IAudioApplicationCatalog
+    {
+        public Task<IReadOnlyList<AudioApplicationOption>> GetAudioApplicationsAsync(
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<IReadOnlyList<AudioApplicationOption>>([application]);
         }
     }
 

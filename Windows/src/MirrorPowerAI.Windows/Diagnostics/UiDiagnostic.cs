@@ -42,6 +42,7 @@ internal sealed class UiDiagnostic
 
         var secretStore = new DiagnosticSecretStore();
         var audioCatalog = new DiagnosticAudioDeviceCatalog();
+        var applicationCatalog = new DiagnosticAudioApplicationCatalog();
         var temporaryDirectory = Path.Combine(
             Path.GetTempPath(),
             "MirrorPowerAI.UiDiagnostic",
@@ -62,13 +63,15 @@ internal sealed class UiDiagnostic
                 new JsonSettingsStore(settingsPath),
                 secretStore,
                 audioCatalog,
-                LocalizationService.Current);
+                LocalizationService.Current,
+                audioApplicationCatalog: applicationCatalog);
             await settingsWindow.ReloadAsync(operationToken);
             await ShowAndAwaitRenderAsync(settingsWindow, operationToken);
 
             failure = UiDiagnosticContract.ValidateSettingsWindow(
                 settingsWindow,
-                expectCloudConsentVisible: false);
+                expectCloudConsentVisible: false,
+                expectApplicationCaptureVisible: false);
             if (failure == UiDiagnosticFailure.None &&
                 !await AwaitSettingsFocusAsync(settingsWindow, operationToken))
             {
@@ -90,7 +93,28 @@ internal sealed class UiDiagnostic
                         operationToken);
                     failure = UiDiagnosticContract.ValidateSettingsWindow(
                         settingsWindow,
-                        expectCloudConsentVisible: true);
+                        expectCloudConsentVisible: true,
+                        expectApplicationCaptureVisible: false);
+                }
+            }
+
+            if (failure == UiDiagnosticFailure.None)
+            {
+                if (settingsWindow.FindName("CaptureSourceBox") is not WpfComboBox captureSourceBox)
+                {
+                    failure = UiDiagnosticFailure.SettingsControlsInvalid;
+                }
+                else
+                {
+                    captureSourceBox.SelectedValue = AudioCaptureSources.Application;
+                    await Dispatcher.CurrentDispatcher.InvokeAsync(
+                        static () => { },
+                        DispatcherPriority.Render,
+                        operationToken);
+                    failure = UiDiagnosticContract.ValidateSettingsWindow(
+                        settingsWindow,
+                        expectCloudConsentVisible: true,
+                        expectApplicationCaptureVisible: true);
                 }
             }
 
@@ -102,7 +126,9 @@ internal sealed class UiDiagnostic
                     temporarySettingsWereCreated: false,
                     expectedSecretStoreCallCount: 2,
                     expectedAudioCatalogCallCount: 1,
-                    unexpectedMutationCount: secretStore.MutationCallCount);
+                    unexpectedMutationCount: secretStore.MutationCallCount,
+                    applicationCatalogCallCount: applicationCatalog.CallCount,
+                    expectedApplicationCatalogCallCount: 1);
             }
 
             if (failure == UiDiagnosticFailure.None && !await CloseSettingsWindowAsync(settingsWindow))
@@ -173,7 +199,9 @@ internal sealed class UiDiagnostic
                     temporarySettingsWereCreated,
                     expectedSecretStoreCallCount: 2,
                     expectedAudioCatalogCallCount: 1,
-                    unexpectedMutationCount: secretStore.MutationCallCount);
+                    unexpectedMutationCount: secretStore.MutationCallCount,
+                    applicationCatalogCallCount: applicationCatalog.CallCount,
+                    expectedApplicationCatalogCallCount: 1);
             }
 
             if (failure == UiDiagnosticFailure.None && !temporarySettingsInspectionSucceeded)
@@ -434,6 +462,21 @@ internal sealed class UiDiagnostic
             return Task.FromResult(devices);
         }
     }
+
+    private sealed class DiagnosticAudioApplicationCatalog : IAudioApplicationCatalog
+    {
+        internal int CallCount { get; private set; }
+
+        public Task<IReadOnlyList<AudioApplicationOption>> GetAudioApplicationsAsync(
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CallCount++;
+            IReadOnlyList<AudioApplicationOption> applications =
+            [new AudioApplicationOption(1234, "diagnostic-player", "Diagnostic player")];
+            return Task.FromResult(applications);
+        }
+    }
 }
 
 /// <summary>
@@ -444,10 +487,12 @@ internal static class UiDiagnosticContract
     /// <summary>Checks the shown settings window and its critical interactive controls.</summary>
     /// <param name="window">The rendered settings window.</param>
     /// <param name="expectCloudConsentVisible">Whether the selected provider should expose cloud consent.</param>
+    /// <param name="expectApplicationCaptureVisible">Whether application-only capture controls should be visible.</param>
     /// <returns>A categorical failure, or <see cref="UiDiagnosticFailure.None"/>.</returns>
     internal static UiDiagnosticFailure ValidateSettingsWindow(
         MainWindow window,
-        bool expectCloudConsentVisible)
+        bool expectCloudConsentVisible,
+        bool expectApplicationCaptureVisible)
     {
         ArgumentNullException.ThrowIfNull(window);
 
@@ -465,9 +510,12 @@ internal static class UiDiagnosticContract
         [
             InspectControl(window, "ApiKeyBox", typeof(WpfPasswordBox)),
             InspectControl(window, "ContextBox", typeof(WpfTextBox)),
+            InspectControl(window, "CaptureSourceBox", typeof(WpfComboBox)),
             InspectControl(window, "ProviderBox", typeof(WpfComboBox)),
             InspectControl(window, "LanguageBox", typeof(WpfComboBox)),
-            InspectControl(window, "DeviceBox", typeof(WpfComboBox)),
+            expectApplicationCaptureVisible
+                ? InspectControl(window, "ApplicationBox", typeof(WpfComboBox))
+                : InspectControl(window, "DeviceBox", typeof(WpfComboBox)),
         ]);
         if (criticalControls != UiDiagnosticFailure.None)
         {
@@ -528,6 +576,8 @@ internal static class UiDiagnosticContract
     /// <param name="expectedSecretStoreCallCount">Expected bounded secret reads from the in-memory adapter.</param>
     /// <param name="expectedAudioCatalogCallCount">Expected bounded calls to the in-memory device adapter.</param>
     /// <param name="unexpectedMutationCount">Unexpected attempts to mutate protected values.</param>
+    /// <param name="applicationCatalogCallCount">Calls observed on the in-memory application catalog.</param>
+    /// <param name="expectedApplicationCatalogCallCount">Expected bounded calls to the application catalog.</param>
     /// <returns>A categorical isolation failure, or <see cref="UiDiagnosticFailure.None"/>.</returns>
     internal static UiDiagnosticFailure ValidateIsolation(
         int secretStoreCallCount,
@@ -535,9 +585,12 @@ internal static class UiDiagnosticContract
         bool temporarySettingsWereCreated,
         int expectedSecretStoreCallCount = 0,
         int expectedAudioCatalogCallCount = 0,
-        int unexpectedMutationCount = 0) =>
+        int unexpectedMutationCount = 0,
+        int applicationCatalogCallCount = 0,
+        int expectedApplicationCatalogCallCount = 0) =>
         secretStoreCallCount != expectedSecretStoreCallCount ||
         audioCatalogCallCount != expectedAudioCatalogCallCount ||
+        applicationCatalogCallCount != expectedApplicationCatalogCallCount ||
         unexpectedMutationCount != 0
             ? UiDiagnosticFailure.UnexpectedDependencyUse
             : temporarySettingsWereCreated

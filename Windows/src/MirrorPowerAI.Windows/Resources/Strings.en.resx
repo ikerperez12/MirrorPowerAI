@@ -43,9 +43,10 @@
   <data name="SessionEmptyAnswer" xml:space="preserve"><value>Gemini returned no usable answer.</value></data>
   <data name="SessionConsentRequired" xml:space="preserve"><value>Explicitly authorize sending audio to Gemini.</value></data>
   <data name="SessionGeminiError" xml:space="preserve"><value>Gemini could not complete the request. Check the key, network, and quota.</value></data>
+  <data name="SessionAudioSourceUnavailable" xml:space="preserve"><value>The selected audio source is unavailable. Open Settings, refresh applications, or use all system audio.</value></data>
   <data name="SessionUnexpectedError" xml:space="preserve"><value>The session could not be completed. Check the device and try again.</value></data>
   <data name="SettingsTitle" xml:space="preserve"><value>MirrorPowerAI settings</value></data>
-  <data name="SettingsIntro" xml:space="preserve"><value>Configure privacy, language, and output device. Changes are stored only for your user.</value></data>
+  <data name="SettingsIntro" xml:space="preserve"><value>Choose an audio source, configure Gemini, and save. Then press Alt+Shift+L to start listening and press it again to process the question.</value></data>
   <data name="ApiKeyLabel" xml:space="preserve"><value>Gemini API key</value></data>
   <data name="ApiKeyHelp" xml:space="preserve"><value>Encrypted with DPAPI for this Windows user and never written as plaintext.</value></data>
   <data name="ContextLabel" xml:space="preserve"><value>Project context</value></data>
@@ -58,8 +59,19 @@
   <data name="LanguageSpanish" xml:space="preserve"><value>Spanish</value></data>
   <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
   <data name="LanguageAuto" xml:space="preserve"><value>Automatic detection</value></data>
+  <data name="AudioSourceGroup" xml:space="preserve"><value>Audio source</value></data>
+  <data name="AudioSourceLabel" xml:space="preserve"><value>Audio to listen to</value></data>
+  <data name="AudioSourceHelp" xml:space="preserve"><value>All system audio is the most compatible option for meetings. Per-application capture isolates only the selected process and its child processes.</value></data>
+  <data name="AudioSourceSystem" xml:space="preserve"><value>All system audio (recommended for meetings)</value></data>
+  <data name="AudioSourceApplication" xml:space="preserve"><value>One specific application</value></data>
   <data name="DeviceLabel" xml:space="preserve"><value>Output device</value></data>
   <data name="DefaultAudioDevice" xml:space="preserve"><value>Windows default output device</value></data>
+  <data name="AudioApplicationLabel" xml:space="preserve"><value>Application with audio</value></data>
+  <data name="AudioApplicationHelp" xml:space="preserve"><value>Start the meeting or playback and select Refresh. For the Teams desktop app, use All system audio: Windows may return silence when that process is isolated.</value></data>
+  <data name="RefreshApplicationsButton" xml:space="preserve"><value>Refresh</value></data>
+  <data name="NoAudioApplications" xml:space="preserve"><value>No applications with an audio session were detected</value></data>
+  <data name="AudioApplicationUnavailable" xml:space="preserve"><value>Application unavailable</value></data>
+  <data name="AudioApplicationRequired" xml:space="preserve"><value>Start an application with audio, select Refresh, and choose it; or select All system audio.</value></data>
   <data name="CloudConsentLabel" xml:space="preserve"><value>Gemini Audio consent</value></data>
   <data name="CloudConsentText" xml:space="preserve"><value>I agree to send the recording to Google Gemini only when I choose Gemini Audio. When the app starts, Gemini Audio stays blocked until I save this choice again. There will be no automatic switch from local Whisper.</value></data>
   <data name="SaveButton" xml:space="preserve"><value>Save</value></data>

@@ -43,9 +43,10 @@
   <data name="SessionEmptyAnswer" xml:space="preserve"><value>Gemini no devolvió una respuesta utilizable.</value></data>
   <data name="SessionConsentRequired" xml:space="preserve"><value>Autoriza explícitamente el envío de audio a Gemini.</value></data>
   <data name="SessionGeminiError" xml:space="preserve"><value>Gemini no pudo completar la solicitud. Revisa la clave, la red y la cuota.</value></data>
+  <data name="SessionAudioSourceUnavailable" xml:space="preserve"><value>La fuente de audio seleccionada no está disponible. Abre Configuración, actualiza las aplicaciones o usa todo el audio del sistema.</value></data>
   <data name="SessionUnexpectedError" xml:space="preserve"><value>No se pudo completar la sesión. Revisa el dispositivo y vuelve a intentarlo.</value></data>
   <data name="SettingsTitle" xml:space="preserve"><value>Configuración de MirrorPowerAI</value></data>
-  <data name="SettingsIntro" xml:space="preserve"><value>Configura la privacidad, el idioma y el dispositivo de salida. Los cambios se guardan sólo para tu usuario.</value></data>
+  <data name="SettingsIntro" xml:space="preserve"><value>Elige la fuente de audio, configura Gemini y guarda. Después pulsa Alt+Mayús+L para iniciar la escucha y vuelve a pulsarlo para procesar la pregunta.</value></data>
   <data name="ApiKeyLabel" xml:space="preserve"><value>Clave API de Gemini</value></data>
   <data name="ApiKeyHelp" xml:space="preserve"><value>Se cifra con DPAPI para este usuario de Windows y nunca se escribe en texto plano.</value></data>
   <data name="ContextLabel" xml:space="preserve"><value>Contexto del proyecto</value></data>
@@ -58,8 +59,19 @@
   <data name="LanguageSpanish" xml:space="preserve"><value>Español</value></data>
   <data name="LanguageEnglish" xml:space="preserve"><value>Inglés</value></data>
   <data name="LanguageAuto" xml:space="preserve"><value>Detección automática</value></data>
+  <data name="AudioSourceGroup" xml:space="preserve"><value>Fuente de audio</value></data>
+  <data name="AudioSourceLabel" xml:space="preserve"><value>Qué audio escuchar</value></data>
+  <data name="AudioSourceHelp" xml:space="preserve"><value>Todo el sistema es la opción más compatible para reuniones. La opción por aplicación aísla sólo el proceso elegido y sus procesos secundarios.</value></data>
+  <data name="AudioSourceSystem" xml:space="preserve"><value>Todo el audio del sistema (recomendado para reuniones)</value></data>
+  <data name="AudioSourceApplication" xml:space="preserve"><value>Una aplicación concreta</value></data>
   <data name="DeviceLabel" xml:space="preserve"><value>Dispositivo de salida</value></data>
   <data name="DefaultAudioDevice" xml:space="preserve"><value>Dispositivo predeterminado de Windows</value></data>
+  <data name="AudioApplicationLabel" xml:space="preserve"><value>Aplicación con audio</value></data>
+  <data name="AudioApplicationHelp" xml:space="preserve"><value>Inicia la reunión o reproducción y pulsa Actualizar. Para Teams de escritorio usa Todo el audio del sistema: Windows puede devolver silencio al aislar ese proceso.</value></data>
+  <data name="RefreshApplicationsButton" xml:space="preserve"><value>Actualizar</value></data>
+  <data name="NoAudioApplications" xml:space="preserve"><value>No se detectaron aplicaciones con una sesión de audio</value></data>
+  <data name="AudioApplicationUnavailable" xml:space="preserve"><value>Aplicación no disponible</value></data>
+  <data name="AudioApplicationRequired" xml:space="preserve"><value>Inicia una aplicación con audio, pulsa Actualizar y selecciónala; o elige Todo el audio del sistema.</value></data>
   <data name="CloudConsentLabel" xml:space="preserve"><value>Consentimiento para Gemini Audio</value></data>
   <data name="CloudConsentText" xml:space="preserve"><value>Acepto enviar la grabación a Google Gemini únicamente cuando elija Gemini Audio. Al iniciar la aplicación, Gemini Audio permanece bloqueado hasta que guarde de nuevo esta elección. No habrá cambio automático desde Whisper local.</value></data>
   <data name="SaveButton" xml:space="preserve"><value>Guardar</value></data>

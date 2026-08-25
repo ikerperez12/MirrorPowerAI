@@ -23,6 +23,19 @@ public sealed record AppSettings
     /// <summary>Gets the WASAPI render-device identifier.</summary>
     public string AudioDeviceId { get; init; } = AudioDeviceOption.DefaultDeviceId;
 
+    /// <summary>Gets whether capture uses an output device or one application process tree.</summary>
+    public string AudioCaptureSource { get; init; } = AudioCaptureSources.SystemOutput;
+
+    /// <summary>Gets the executable process name selected for application-only capture.</summary>
+    public string AudioProcessName { get; init; } = string.Empty;
+
+    /// <summary>Gets the last process identifier selected for application-only capture.</summary>
+    /// <remarks>
+    /// Process identifiers are ephemeral. The executable name remains the stable fallback after an
+    /// application restarts, while this value helps preserve the exact running instance when possible.
+    /// </remarks>
+    public int? AudioProcessId { get; init; }
+
     /// <summary>
     /// Gets the internally configured Gemini model identifier.
     /// </summary>
@@ -57,6 +70,17 @@ public sealed record AppSettings
             audioDeviceId = AudioDeviceOption.DefaultDeviceId;
         }
 
+        var audioCaptureSource = AudioCaptureSources.IsSupported(AudioCaptureSource)
+            ? AudioCaptureSource
+            : AudioCaptureSources.SystemOutput;
+        var audioProcessName = NormalizeProcessName(AudioProcessName);
+        var audioProcessId = AudioProcessId is > 0 ? AudioProcessId : null;
+        if (audioCaptureSource == AudioCaptureSources.SystemOutput)
+        {
+            audioProcessName = string.Empty;
+            audioProcessId = null;
+        }
+
         var geminiModel = GeminiClientOptions.NormalizeModelOrDefault(GeminiModel);
 
         return this with
@@ -67,6 +91,9 @@ public sealed record AppSettings
             TranscriptionProvider = provider,
             Language = language,
             AudioDeviceId = audioDeviceId,
+            AudioCaptureSource = audioCaptureSource,
+            AudioProcessName = audioProcessName,
+            AudioProcessId = audioProcessId,
             GeminiModel = geminiModel,
             GeminiAudioConsentVersion = provider == TranscriptionProviders.GeminiAudio
                 ? Math.Max(0, GeminiAudioConsentVersion)
@@ -99,6 +126,37 @@ public sealed record AppSettings
 
     private static IReadOnlySet<string> SupportedLanguages { get; } =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "es", "en", "auto" };
+
+    private static string NormalizeProcessName(string? processName)
+    {
+        var normalized = (processName ?? string.Empty).Trim();
+        if (normalized.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized[..^4];
+        }
+
+        return normalized.Length is > 0 and <= 260 &&
+               normalized.IndexOfAny(['\\', '/', ':', '\0']) < 0
+            ? normalized
+            : string.Empty;
+    }
+}
+
+/// <summary>Stable identifiers for the two Windows audio-capture scopes.</summary>
+public static class AudioCaptureSources
+{
+    /// <summary>Captures the complete mix rendered by one Windows output device.</summary>
+    public const string SystemOutput = "SystemOutput";
+
+    /// <summary>Captures only one selected process and its child processes.</summary>
+    public const string Application = "Application";
+
+    /// <summary>Determines whether a persisted source identifier is supported.</summary>
+    /// <param name="source">The identifier to inspect.</param>
+    /// <returns>Whether the identifier is supported.</returns>
+    public static bool IsSupported(string? source) =>
+        string.Equals(source, SystemOutput, StringComparison.Ordinal) ||
+        string.Equals(source, Application, StringComparison.Ordinal);
 }
 
 /// <summary>Stable provider identifiers persisted in user settings.</summary>
@@ -136,6 +194,34 @@ public interface IAudioDeviceCatalog
     /// <param name="cancellationToken">Cancels enumeration.</param>
     /// <returns>Available devices, including the Windows default option.</returns>
     Task<IReadOnlyList<AudioDeviceOption>> GetOutputDevicesAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>Describes one running application that owns an active Windows audio session.</summary>
+/// <param name="ProcessId">Current root process identifier used for process-tree loopback.</param>
+/// <param name="ProcessName">Executable name without a path or <c>.exe</c> suffix.</param>
+/// <param name="DisplayName">Non-sensitive user-facing application name.</param>
+public sealed record AudioApplicationOption(int ProcessId, string ProcessName, string DisplayName);
+
+/// <summary>Provides applications that currently own render-audio sessions.</summary>
+public interface IAudioApplicationCatalog
+{
+    /// <summary>Enumerates a non-sensitive snapshot of selectable audio applications.</summary>
+    /// <param name="cancellationToken">Cancels enumeration.</param>
+    /// <returns>Available applications ordered by display name.</returns>
+    Task<IReadOnlyList<AudioApplicationOption>> GetAudioApplicationsAsync(
+        CancellationToken cancellationToken);
+}
+
+/// <summary>Empty application catalog used by isolated UI paths.</summary>
+public sealed class EmptyAudioApplicationCatalog : IAudioApplicationCatalog
+{
+    /// <inheritdoc />
+    public Task<IReadOnlyList<AudioApplicationOption>> GetAudioApplicationsAsync(
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<AudioApplicationOption>>([]);
+    }
 }
 
 /// <summary>

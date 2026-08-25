@@ -63,6 +63,57 @@
                            TextWrapping="Wrap"
                            Text="{loc:Loc ContextHelp}" />
 
+                <GroupBox Header="{loc:Loc AudioSourceGroup}" Margin="0,0,0,16" Padding="12">
+                    <StackPanel>
+                        <Label Padding="0,0,0,4"
+                               FontWeight="SemiBold"
+                               Target="{Binding ElementName=CaptureSourceBox}"
+                               Content="{loc:Loc AudioSourceLabel}" />
+                        <ComboBox x:Name="CaptureSourceBox"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Id"
+                                  SelectionChanged="OnAudioSourceSelectionChanged"
+                                  automation:AutomationProperties.Name="{loc:Loc AudioSourceLabel}"
+                                  automation:AutomationProperties.HelpText="{loc:Loc AudioSourceHelp}" />
+                        <TextBlock Margin="0,4,0,12"
+                                   TextWrapping="Wrap"
+                                   Text="{loc:Loc AudioSourceHelp}" />
+
+                        <StackPanel x:Name="SystemOutputPanel">
+                            <Label Padding="0,0,0,4"
+                                   FontWeight="SemiBold"
+                                   Target="{Binding ElementName=DeviceBox}"
+                                   Content="{loc:Loc DeviceLabel}" />
+                            <ComboBox x:Name="DeviceBox"
+                                      DisplayMemberPath="DisplayName"
+                                      SelectedValuePath="Id"
+                                      automation:AutomationProperties.Name="{loc:Loc DeviceLabel}" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="ApplicationOutputPanel">
+                            <Label Padding="0,0,0,4"
+                                   FontWeight="SemiBold"
+                                   Target="{Binding ElementName=ApplicationBox}"
+                                   Content="{loc:Loc AudioApplicationLabel}" />
+                            <DockPanel LastChildFill="True">
+                                <Button x:Name="RefreshApplicationsButton"
+                                        DockPanel.Dock="Right"
+                                        Margin="8,0,0,0"
+                                        Click="OnRefreshApplicationsClick"
+                                        Content="{loc:Loc RefreshApplicationsButton}"
+                                        automation:AutomationProperties.Name="{loc:Loc RefreshApplicationsButton}" />
+                                <ComboBox x:Name="ApplicationBox"
+                                          DisplayMemberPath="DisplayName"
+                                          automation:AutomationProperties.Name="{loc:Loc AudioApplicationLabel}"
+                                          automation:AutomationProperties.HelpText="{loc:Loc AudioApplicationHelp}" />
+                            </DockPanel>
+                            <TextBlock Margin="0,4,0,0"
+                                       TextWrapping="Wrap"
+                                       Text="{loc:Loc AudioApplicationHelp}" />
+                        </StackPanel>
+                    </StackPanel>
+                </GroupBox>
+
                 <GroupBox Header="{loc:Loc ProviderGroup}" Margin="0,0,0,16" Padding="12">
                     <StackPanel>
                         <Label Padding="0,0,0,4"
@@ -84,16 +135,6 @@
                                   DisplayMemberPath="DisplayName"
                                   SelectedValuePath="Id"
                                   automation:AutomationProperties.Name="{loc:Loc LanguageLabel}" />
-
-                        <Label Margin="0,12,0,0"
-                               Padding="0,0,0,4"
-                               FontWeight="SemiBold"
-                               Target="{Binding ElementName=DeviceBox}"
-                               Content="{loc:Loc DeviceLabel}" />
-                        <ComboBox x:Name="DeviceBox"
-                                  DisplayMemberPath="DisplayName"
-                                  SelectedValuePath="Id"
-                                  automation:AutomationProperties.Name="{loc:Loc DeviceLabel}" />
                     </StackPanel>
                 </GroupBox>
 

@@ -21,6 +21,9 @@ public sealed class JsonSettingsStoreTests : IDisposable
             TranscriptionProvider = TranscriptionProviders.GeminiAudio,
             Language = "EN",
             AudioDeviceId = "  endpoint-42  ",
+            AudioCaptureSource = AudioCaptureSources.Application,
+            AudioProcessName = "  chrome.exe  ",
+            AudioProcessId = 42,
             GeminiModel = "gemini-2.5-flash",
             GeminiAudioConsentVersion = 2,
         };
@@ -37,6 +40,9 @@ public sealed class JsonSettingsStoreTests : IDisposable
         Assert.Equal(TranscriptionProviders.GeminiAudio, loaded.TranscriptionProvider);
         Assert.Equal("en", loaded.Language);
         Assert.Equal("endpoint-42", loaded.AudioDeviceId);
+        Assert.Equal(AudioCaptureSources.Application, loaded.AudioCaptureSource);
+        Assert.Equal("chrome", loaded.AudioProcessName);
+        Assert.Equal(42, loaded.AudioProcessId);
         Assert.Equal("gemini-2.5-flash", loaded.GeminiModel);
         Assert.Equal(2, loaded.GeminiAudioConsentVersion);
     }
@@ -52,6 +58,9 @@ public sealed class JsonSettingsStoreTests : IDisposable
             TranscriptionProvider = "UnknownCloudProvider",
             Language = "invalid",
             AudioDeviceId = "   ",
+            AudioCaptureSource = "UnknownCaptureScope",
+            AudioProcessName = @"C:\private\meeting.exe",
+            AudioProcessId = -1,
             GeminiModel = "https://example.test/model",
             GeminiAudioConsentVersion = 99,
         };
@@ -64,6 +73,9 @@ public sealed class JsonSettingsStoreTests : IDisposable
         Assert.Equal(TranscriptionProviders.LocalWhisper, loaded.TranscriptionProvider);
         Assert.Equal("es", loaded.Language);
         Assert.Equal(AudioDeviceOption.DefaultDeviceId, loaded.AudioDeviceId);
+        Assert.Equal(AudioCaptureSources.SystemOutput, loaded.AudioCaptureSource);
+        Assert.Equal(string.Empty, loaded.AudioProcessName);
+        Assert.Null(loaded.AudioProcessId);
         Assert.Equal(MirrorPowerAI.Core.Gemini.GeminiClientOptions.DefaultModel, loaded.GeminiModel);
         Assert.Equal(0, loaded.GeminiAudioConsentVersion);
     }

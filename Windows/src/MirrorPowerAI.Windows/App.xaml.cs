@@ -127,13 +127,15 @@ public partial class App : System.Windows.Application, IDisposable
         var audioDevices = new NAudioDeviceCatalog(
             new NAudioEndpointProvider(),
             localization["DefaultAudioDevice"]);
+        var audioApplications = new NAudioApplicationCatalog();
 
         _settingsWindow = new MainWindow(
             settingsStore,
             secretStore,
             audioDevices,
             localization,
-            geminiAudioConsentGate);
+            geminiAudioConsentGate,
+            audioApplications);
         _settingsWindow.SettingsSaved += OnSettingsSaved;
         _overlayPresenter = new OverlayPresenter(new OverlayProtectionService());
         _sessionCommands = CreateSessionCommands(
@@ -156,6 +158,10 @@ public partial class App : System.Windows.Application, IDisposable
             _hotKey.Registration.IsRegistered,
             dpiResult.IsUsable,
             new LocalizedTrayStartupNotificationSink(trayIcon, resourceKey => localization[resourceKey]));
+
+        // A visible configuration window makes first use discoverable. Closing it still leaves the
+        // application in the tray, preserving the lightweight shell after onboarding.
+        _ = Dispatcher.BeginInvoke(new Action(() => OnSettingsRequested(this, EventArgs.Empty)));
     }
 
     private void VerifyOverlayProtectionAndExit()
