@@ -9,6 +9,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 - [ ] Preflight de UI: ejecutar `./Windows/verify-ui.ps1` en una sesión local e interactiva. Comprueba el ciclo WPF real de configuración y overlay con texto fijo no sensible, carga valores predeterminados desde una ruta temporal aislada, valida los estados Local/Gemini, renderizado, UI Automation, foco lógico inicial de configuración, foco del resultado y limpieza; no usa configuración del usuario, DPAPI, audio real, red, modelos ni sesiones, no deja la ruta temporal creada y no sustituye comprobar físicamente el foco de teclado, accesibilidad o captura.
 - [ ] Abrir la aplicación normal y comprobar visualmente el icono de la bandeja y su menú mediante teclado.
 - [ ] Pulsar físicamente `Alt+Shift+L` para iniciar/detener una sesión y comprobar que al salir no queda icono ni proceso residual.
+- [ ] Pulsar **Salir** inmediatamente después de **Guardar**: la aplicación espera el guardado; si supera 15 segundos permanece abierta, avisa sin datos sensibles y permite reintentar sin dejar configuración temporal ni cerrar dependencias en uso.
 - [ ] Durante una sesión, verificar que los cambios `Capturando`, `Procesando`, `Error` y regreso a `Preparado` ofrecen feedback de bandeja genérico y localizado, sin API key, contexto, audio, pregunta, respuesta ni detalle del proveedor; el arranque inicial en `Preparado` debe permanecer silencioso.
 
 ## Captura y exclusión del overlay

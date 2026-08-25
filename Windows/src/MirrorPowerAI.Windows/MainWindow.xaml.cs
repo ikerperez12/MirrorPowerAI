@@ -42,6 +42,7 @@ public partial class MainWindow : Window
     private readonly bool _ownsGeminiAudioConsentGate;
     private bool _allowClose;
     private bool _isLoading;
+    private bool _applicationExitRequested;
     private bool _apiKeyWasRead;
     private bool _contextWasRead;
     private bool _statusAnnouncementPending;
@@ -50,6 +51,7 @@ public partial class MainWindow : Window
     private bool _initialFocusPending = true;
     private bool _isPositioningBeforeShow;
     private bool _persistedSettingsLoaded;
+    private TaskCompletionSource? _activeSaveCompletion;
     private AppSettings _persistedSettings = new();
 
     /// <summary>Gets whether protected and non-secret settings are being persisted.</summary>
@@ -178,8 +180,47 @@ public partial class MainWindow : Window
     /// <summary>Allows the application shutdown path to close rather than hide this window.</summary>
     public void CloseForApplicationExit()
     {
+        _applicationExitRequested = true;
         _allowClose = true;
         Close();
+    }
+
+    /// <summary>
+    /// Prevents another save from starting and waits a bounded interval for the current atomic save
+    /// to finish before application-owned dependencies are disposed.
+    /// </summary>
+    /// <param name="timeout">Maximum interval allowed for an already active save.</param>
+    /// <param name="cancellationToken">Cancels the exit attempt without cancelling the save itself.</param>
+    /// <returns><see langword="true"/> when shutdown may proceed safely; otherwise <see langword="false"/>.</returns>
+    internal async Task<bool> TryPrepareForApplicationExitAsync(
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        Dispatcher.VerifyAccess();
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
+
+        _applicationExitRequested = true;
+        var activeSave = _activeSaveCompletion?.Task;
+        if (activeSave is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            await activeSave.WaitAsync(timeout, cancellationToken);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            _applicationExitRequested = false;
+            return false;
+        }
+        catch (OperationCanceledException)
+        {
+            _applicationExitRequested = false;
+            throw;
+        }
     }
 
     private void OnSourceInitialized(object? sender, EventArgs eventArgs)
@@ -345,7 +386,7 @@ public partial class MainWindow : Window
     /// <returns>A task that completes after the save attempt has finished.</returns>
     public async Task SaveAsync()
     {
-        if (IsSaving)
+        if (IsSaving || _applicationExitRequested)
         {
             return;
         }
@@ -369,6 +410,8 @@ public partial class MainWindow : Window
         }
 
         IsSaving = true;
+        var saveCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _activeSaveCompletion = saveCompletion;
         try
         {
             // SaveAsync is public for keyboard/UI automation tests and callers. Preserve hidden,
@@ -430,6 +473,12 @@ public partial class MainWindow : Window
         finally
         {
             IsSaving = false;
+            if (ReferenceEquals(_activeSaveCompletion, saveCompletion))
+            {
+                _activeSaveCompletion = null;
+            }
+
+            saveCompletion.TrySetResult();
         }
     }
 

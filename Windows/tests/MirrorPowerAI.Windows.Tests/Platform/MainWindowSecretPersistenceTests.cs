@@ -149,7 +149,53 @@ public sealed class MainWindowSecretPersistenceTests
         });
     }
 
-    private static MainWindow CreateWindow(JsonSettingsStore settingsStore, ISecretStore secretStore) => new(
+    [Fact]
+    public async Task TryPrepareForApplicationExitAsync_ActiveSave_WaitsAndPreventsAnotherSave()
+    {
+        var settingsStore = new BlockingSettingsStore();
+        var secretStore = new RecordingSecretStore();
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var window = CreateWindow(settingsStore, secretStore);
+            var saveTask = window.SaveAsync();
+            await settingsStore.SaveEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            var prepareExitTask = window.TryPrepareForApplicationExitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(prepareExitTask.IsCompleted);
+
+            settingsStore.ReleaseFirstSave();
+            Assert.True(await prepareExitTask);
+            await saveTask;
+            Assert.Equal(1, settingsStore.SaveCallCount);
+
+            await window.SaveAsync();
+            Assert.Equal(1, settingsStore.SaveCallCount);
+        });
+    }
+
+    [Fact]
+    public async Task TryPrepareForApplicationExitAsync_SaveTimeout_AllowsRetryAfterSaveFinishes()
+    {
+        var settingsStore = new BlockingSettingsStore();
+        var secretStore = new RecordingSecretStore();
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var window = CreateWindow(settingsStore, secretStore);
+            var saveTask = window.SaveAsync();
+            await settingsStore.SaveEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.False(await window.TryPrepareForApplicationExitAsync(TimeSpan.FromMilliseconds(50)));
+
+            settingsStore.ReleaseFirstSave();
+            await saveTask;
+            await window.SaveAsync();
+            Assert.Equal(2, settingsStore.SaveCallCount);
+        });
+    }
+
+    private static MainWindow CreateWindow(IAppSettingsStore settingsStore, ISecretStore secretStore) => new(
         settingsStore,
         secretStore,
         new TestAudioDeviceCatalog(),
@@ -218,6 +264,37 @@ public sealed class MainWindowSecretPersistenceTests
             Mutations.Add(new SecretMutation(SecretMutationKind.Delete, name, null));
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class BlockingSettingsStore : IAppSettingsStore
+    {
+        private readonly TaskCompletionSource _releaseFirstSave =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource SaveEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int SaveCallCount { get; private set; }
+
+        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new AppSettings());
+        }
+
+        public async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(settings);
+            cancellationToken.ThrowIfCancellationRequested();
+            SaveCallCount++;
+            SaveEntered.TrySetResult();
+            if (SaveCallCount == 1)
+            {
+                await _releaseFirstSave.Task.WaitAsync(cancellationToken);
+            }
+        }
+
+        public void ReleaseFirstSave() => _releaseFirstSave.TrySetResult();
     }
 
     private sealed class TemporaryDirectory : IDisposable

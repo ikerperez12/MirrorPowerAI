@@ -19,6 +19,7 @@ namespace MirrorPowerAI.Windows;
 /// </summary>
 public partial class App : System.Windows.Application, IDisposable
 {
+    private static readonly TimeSpan SettingsSaveExitTimeout = TimeSpan.FromSeconds(15);
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private SingleInstanceGuard? _singleInstance;
     private TrayIconService? _trayIcon;
@@ -38,6 +39,7 @@ public partial class App : System.Windows.Application, IDisposable
     private int _toggleInProgress;
     private int _privacyTransitionsPending;
     private int _resourcesDisposed;
+    private int _exitInProgress;
     private string? _lastDisplayedAnswer;
 
     /// <inheritdoc />
@@ -543,8 +545,25 @@ public partial class App : System.Windows.Application, IDisposable
 
     private async void OnExitRequested(object? sender, EventArgs eventArgs)
     {
+        if (Interlocked.Exchange(ref _exitInProgress, 1) != 0)
+        {
+            return;
+        }
+
+        var mayRetryExit = true;
         try
         {
+            if (_settingsWindow is not null &&
+                !await _settingsWindow.TryPrepareForApplicationExitAsync(
+                    SettingsSaveExitTimeout,
+                    _lifetimeCancellation.Token))
+            {
+                BestEffortCleanup.Run(
+                    () => _trayIcon?.ShowError(LocalizationService.Current["SettingsSaveInProgress"]));
+                return;
+            }
+
+            mayRetryExit = false;
             await RunPrivacyTransitionAsync(async cancellationToken =>
             {
                 if (_sessionCommands is not null)
@@ -555,13 +574,25 @@ public partial class App : System.Windows.Application, IDisposable
         }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
         {
+            mayRetryExit = false;
         }
         catch (Exception)
         {
+            mayRetryExit = false;
             // Shutdown still proceeds; DisposeResources performs a final best-effort cancellation.
         }
+        finally
+        {
+            if (mayRetryExit)
+            {
+                Interlocked.Exchange(ref _exitInProgress, 0);
+            }
+        }
 
-        Shutdown();
+        if (!mayRetryExit)
+        {
+            Shutdown();
+        }
     }
 
     /// <inheritdoc />
