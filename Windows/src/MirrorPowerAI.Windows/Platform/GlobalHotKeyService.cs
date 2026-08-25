@@ -15,9 +15,10 @@ public sealed class GlobalHotKeyService : IDisposable, IShellDiagnosticHotKeyRes
     private readonly IGlobalHotKeyApi _hotKeyApi;
     private bool _registered;
     private bool _disposed;
+    private bool _messageWindowDisposed;
     private bool? _unregistrationSucceeded;
 
-    bool IShellDiagnosticResource.IsDisposed => _disposed;
+    bool IShellDiagnosticResource.IsDisposed => _disposed && _messageWindowDisposed;
 
     bool IShellDiagnosticHotKeyResource.IsRegistered => Registration.IsRegistered;
 
@@ -88,7 +89,7 @@ public sealed class GlobalHotKeyService : IDisposable, IShellDiagnosticHotKeyRes
 
     private nint WindowProcedure(nint windowHandle, int message, nint wParam, nint lParam, ref bool handled)
     {
-        if (message == NativeMethods.WmHotKey && wParam == HotKeyIdentifier)
+        if (!_disposed && message == NativeMethods.WmHotKey && wParam == HotKeyIdentifier)
         {
             handled = true;
             Pressed?.Invoke(this, EventArgs.Empty);
@@ -100,20 +101,40 @@ public sealed class GlobalHotKeyService : IDisposable, IShellDiagnosticHotKeyRes
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed)
+        if (_disposed && _messageWindowDisposed)
         {
             return;
         }
 
+        _disposed = true;
         if (_registered)
         {
-            _unregistrationSucceeded = Unregister(_messageWindow.Handle, _hotKeyApi);
-            _registered = false;
+            try
+            {
+                _unregistrationSucceeded = Unregister(_messageWindow.Handle, _hotKeyApi);
+            }
+            catch (Exception)
+            {
+                _unregistrationSucceeded = false;
+            }
+            finally
+            {
+                _registered = false;
+            }
         }
 
-        _messageWindow.RemoveHook(WindowProcedure);
-        _messageWindow.Dispose();
-        _disposed = true;
+        BestEffortCleanup.Run(
+            () => _messageWindow.RemoveHook(WindowProcedure),
+            () => _messageWindow.Dispose());
+        try
+        {
+            _messageWindowDisposed = _messageWindow.Handle == nint.Zero;
+        }
+        catch (Exception)
+        {
+            _messageWindowDisposed = false;
+        }
+
         GC.SuppressFinalize(this);
     }
 }

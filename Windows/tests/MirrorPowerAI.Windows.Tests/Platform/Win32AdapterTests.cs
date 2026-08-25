@@ -1,7 +1,9 @@
+using MirrorPowerAI.Windows.Diagnostics;
 using MirrorPowerAI.Windows.Platform;
 
 namespace MirrorPowerAI.Windows.Tests.Platform;
 
+[Collection(nameof(WpfSettingsWindowSerialTestSuite))]
 public sealed class Win32AdapterTests
 {
     [Fact]
@@ -114,6 +116,30 @@ public sealed class Win32AdapterTests
     }
 
     [Fact]
+    public async Task GlobalHotKey_DisposeWhenUnregisterThrows_StillDisposesMessageWindow()
+    {
+        await StaDispatcher.RunAsync(() =>
+        {
+            var native = new FakeGlobalHotKeyApi
+            {
+                RegisterResult = true,
+                UnregisterException = new InvalidOperationException("simulated native failure"),
+            };
+            var service = new GlobalHotKeyService(native);
+            var diagnostic = (IShellDiagnosticHotKeyResource)service;
+
+            service.Dispose();
+            service.Dispose();
+
+            Assert.True(((IShellDiagnosticResource)service).IsDisposed);
+            Assert.False(diagnostic.UnregistrationSucceeded);
+            Assert.Equal(nint.Zero, diagnostic.WindowHandle);
+            Assert.Equal(1, native.UnregisterCallCount);
+            return Task.CompletedTask;
+        });
+    }
+
+    [Fact]
     public void SingleInstance_AcquiredMutex_ReleasesAndDisposesOnce()
     {
         var mutex = new FakeInstanceMutex { AcquireResult = true };
@@ -203,6 +229,10 @@ public sealed class Win32AdapterTests
 
         public bool UnregisterResult { get; init; }
 
+        public Exception? UnregisterException { get; init; }
+
+        public int UnregisterCallCount { get; private set; }
+
         public nint LastUnregisterWindowHandle { get; private set; }
 
         public int LastUnregisterIdentifier { get; private set; }
@@ -218,8 +248,14 @@ public sealed class Win32AdapterTests
 
         public bool UnregisterHotKey(nint windowHandle, int identifier)
         {
+            UnregisterCallCount++;
             LastUnregisterWindowHandle = windowHandle;
             LastUnregisterIdentifier = identifier;
+            if (UnregisterException is not null)
+            {
+                throw UnregisterException;
+            }
+
             return UnregisterResult;
         }
 
