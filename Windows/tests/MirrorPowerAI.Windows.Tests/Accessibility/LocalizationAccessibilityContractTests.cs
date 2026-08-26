@@ -77,6 +77,16 @@ public sealed class LocalizationAccessibilityContractTests
             .Single(element =>
                 element.Name.LocalName == "TextBox" &&
                 AttributeValue(element, XamlNamespace + "Name") == "AnswerTextBox");
+        var sessionStatus = overlayWindow
+            .Descendants()
+            .Single(element =>
+                element.Name.LocalName == "TextBlock" &&
+                AttributeValue(element, XamlNamespace + "Name") == "StatusTextBlock");
+        var sessionProgress = overlayWindow
+            .Descendants()
+            .Single(element =>
+                element.Name.LocalName == "ProgressBar" &&
+                AttributeValue(element, XamlNamespace + "Name") == "StatusProgressBar");
 
         Assert.Equal(UiLanguageBinding, AttributeValue(mainWindow.Root!, "Language"));
         Assert.Equal(UiLanguageBinding, AttributeValue(overlayWindow.Root!, "Language"));
@@ -96,6 +106,12 @@ public sealed class LocalizationAccessibilityContractTests
         Assert.Equal(
             "Polite",
             AttributeValue(answer, AutomationNamespace + "AutomationProperties.LiveSetting"));
+        Assert.Equal(
+            "Assertive",
+            AttributeValue(sessionStatus, AutomationNamespace + "AutomationProperties.LiveSetting"));
+        Assert.Equal(
+            "{loc:Loc OverlayProgressName}",
+            AttributeValue(sessionProgress, AutomationNamespace + "AutomationProperties.Name"));
     }
 
     [Fact]

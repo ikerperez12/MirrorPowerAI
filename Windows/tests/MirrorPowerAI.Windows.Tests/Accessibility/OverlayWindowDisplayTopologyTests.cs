@@ -62,7 +62,10 @@ public sealed class OverlayWindowDisplayTopologyTests
                 () => displaySettings.SubscriptionCount == 1,
                 window.Dispatcher);
 
-            await Task.Run(displaySettings.Raise);
+            // Block this dispatcher only until the background event has queued its callback. Closing
+            // before returning to the dispatcher makes the intended queued-after-close ordering
+            // deterministic instead of racing ApplicationIdle against the awaited continuation.
+            Task.Run(displaySettings.Raise).GetAwaiter().GetResult();
             window.Close();
             await window.Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle);
 

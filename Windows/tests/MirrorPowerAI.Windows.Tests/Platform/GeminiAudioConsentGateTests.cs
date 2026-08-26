@@ -14,6 +14,40 @@ namespace MirrorPowerAI.Windows.Tests.Platform;
 public sealed class GeminiAudioConsentGateTests
 {
     [Fact]
+    public async Task ReloadAsync_PersistedConsentAfterRestart_ShowsUncheckedReauthorizationState()
+    {
+        var persistedConsent = GeminiAudioConsentPolicy.Grant();
+        var settingsStore = new ControllableSettingsStore(new AppSettings
+        {
+            TranscriptionProvider = TranscriptionProviders.GeminiAudio,
+            GeminiAudioConsentVersion = persistedConsent.Version,
+            GeminiAudioConsentGrantedAtUtc = persistedConsent.GrantedAtUtc,
+        });
+        using var restartedGate = new GeminiAudioConsentGate();
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var window = new MainWindow(
+                settingsStore,
+                new InMemorySecretStore(),
+                new TestAudioDeviceCatalog(),
+                LocalizationService.Current,
+                restartedGate);
+
+            await window.ReloadAsync();
+
+            Assert.False(GetCheckBox(window, "CloudConsentBox").IsChecked);
+            var status = Assert.IsType<TextBlock>(window.FindName("StatusText"));
+            Assert.Equal(System.Windows.Visibility.Visible, status.Visibility);
+            Assert.Contains(
+                LocalizationService.Current["GeminiAudioReauthorizationRequired"],
+                status.Text,
+                StringComparison.Ordinal);
+            Assert.Null(restartedGate.GetEffectiveConsent(persistedConsent));
+        });
+    }
+
+    [Fact]
     public async Task SaveAsync_RevocationPersistenceFailure_BlocksExistingFreshAndRestartedGeminiServicesUntilExplicitSaveSucceeds()
     {
         // Arrange
@@ -183,7 +217,8 @@ public sealed class GeminiAudioConsentGateTests
         public Task<string?> GetSecretAsync(string name, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<string?>(null);
+            return Task.FromResult<string?>(
+                name == MainWindow.GeminiApiKeySecretName ? "test-api-key" : null);
         }
 
         public Task SetSecretAsync(string name, string value, CancellationToken cancellationToken = default)

@@ -427,6 +427,26 @@ public partial class App : System.Windows.Application, IDisposable
         if (snapshot.Activity == ShellActivityState.Capturing)
         {
             _lastDisplayedAnswer = null;
+            ShowProtectedSessionStatus(
+                LocalizationService.Current["OverlayStatusListening"],
+                isBusy: true);
+        }
+        else if (snapshot.Activity == ShellActivityState.Processing)
+        {
+            ShowProtectedSessionStatus(
+                LocalizationService.Current["OverlayStatusProcessing"],
+                isBusy: true);
+        }
+        else if (snapshot.Activity == ShellActivityState.Error)
+        {
+            _lastDisplayedAnswer = null;
+            var errorMessage = string.IsNullOrWhiteSpace(snapshot.UserMessage)
+                ? LocalizationService.Current["UnexpectedError"]
+                : LocalizeSessionMessage(snapshot.UserMessage);
+            ShowProtectedSessionStatus(errorMessage, isBusy: false);
+        }
+        else if (!snapshot.HasResult)
+        {
             _overlayPresenter?.Close();
         }
 
@@ -438,6 +458,20 @@ public partial class App : System.Windows.Application, IDisposable
         if (snapshot.HasResult && !string.Equals(snapshot.Answer, _lastDisplayedAnswer, StringComparison.Ordinal))
         {
             ShowProtectedResponse(snapshot);
+        }
+    }
+
+    private void ShowProtectedSessionStatus(string status, bool isBusy)
+    {
+        if (_overlayPresenter is null)
+        {
+            return;
+        }
+
+        var result = _overlayPresenter.TryShowStatus(status, isBusy);
+        if (!result.WasShown)
+        {
+            _trayIcon?.ShowError(LocalizationService.Current["OverlayProtectionFailed"]);
         }
     }
 

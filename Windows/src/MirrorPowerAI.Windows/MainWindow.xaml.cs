@@ -140,15 +140,25 @@ public partial class MainWindow : Window
                 applications,
                 settings.AudioProcessName,
                 settings.AudioProcessId);
-            CloudConsentBox.IsChecked =
-                settings.GeminiAudioConsentVersion == CurrentGeminiAudioConsentVersion &&
-                settings.GeminiAudioConsentGrantedAtUtc is not null;
+            var persistedConsent = CreatePersistedGeminiAudioConsent(settings);
+            var hasEffectiveGeminiAudioConsent =
+                _geminiAudioConsentGate.GetEffectiveConsent(persistedConsent) is not null;
+            CloudConsentBox.IsChecked = hasEffectiveGeminiAudioConsent;
             UpdateConsentVisibility();
             UpdateAudioSourceVisibility();
 
             if (!apiKey.WasRead || !context.WasRead)
             {
                 ShowStatus(_localization["SettingsLoadError"], isError: true);
+            }
+            else if (string.IsNullOrWhiteSpace(apiKey.Value))
+            {
+                ShowStatus(_localization["ApiKeyRequired"], isError: true);
+            }
+            else if (settings.TranscriptionProvider == TranscriptionProviders.GeminiAudio &&
+                     !hasEffectiveGeminiAudioConsent)
+            {
+                ShowStatus(_localization["GeminiAudioReauthorizationRequired"], isError: false);
             }
         }
         finally
@@ -172,6 +182,12 @@ public partial class MainWindow : Window
             return new SecretReadResult(null, WasRead: false);
         }
     }
+
+    private static GeminiAudioConsent? CreatePersistedGeminiAudioConsent(AppSettings settings) =>
+        settings.GeminiAudioConsentVersion == CurrentGeminiAudioConsentVersion &&
+        settings.GeminiAudioConsentGrantedAtUtc is DateTimeOffset grantedAtUtc
+            ? new GeminiAudioConsent(settings.GeminiAudioConsentVersion, grantedAtUtc)
+            : null;
 
     private async Task<IReadOnlyList<AudioDeviceOption>> GetOutputDevicesSafelyAsync(
         CancellationToken cancellationToken)

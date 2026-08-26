@@ -2,6 +2,7 @@ using System.IO;
 using System.Security.Cryptography;
 using MirrorPowerAI.Core.Audio;
 using MirrorPowerAI.Core.Answers;
+using MirrorPowerAI.Core.Configuration;
 using MirrorPowerAI.Core.Gemini;
 using MirrorPowerAI.Core.Privacy;
 using MirrorPowerAI.Core.Security;
@@ -89,6 +90,18 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
                 ShellActivityState.Error,
                 UserMessage: "SessionAudioSourceUnavailable"));
         }
+        catch (ConfigurationValidationException)
+        {
+            Publish(new SessionSnapshot(
+                ShellActivityState.Error,
+                UserMessage: "SessionInvalidConfiguration"));
+        }
+        catch (GeminiApiException exception) when (exception.Kind == GeminiErrorKind.MissingApiKey)
+        {
+            Publish(new SessionSnapshot(
+                ShellActivityState.Error,
+                UserMessage: "SessionApiKeyRequired"));
+        }
         finally
         {
             _lifecycleGate.Release();
@@ -170,7 +183,16 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
 
         var settingsTask = _settingsStore.LoadAsync(cancellationToken);
         var contextTask = _secretStore.GetSecretAsync(MainWindow.ProjectContextSecretName, cancellationToken);
-        await Task.WhenAll(settingsTask, contextTask).ConfigureAwait(false);
+        var apiKeyTask = _secretStore.GetSecretAsync(MainWindow.GeminiApiKeySecretName, cancellationToken);
+        await Task.WhenAll(settingsTask, contextTask, apiKeyTask).ConfigureAwait(false);
+        var apiKey = await apiKeyTask.ConfigureAwait(false);
+        if (!IsUsableGeminiApiKey(apiKey))
+        {
+            throw new GeminiApiException(
+                GeminiErrorKind.MissingApiKey,
+                "A valid Gemini API key is required before capture starts.");
+        }
+
         var persistedSettings = await settingsTask.ConfigureAwait(false);
         var settings = (persistedSettings with
         {
@@ -193,6 +215,19 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
         Volatile.Write(ref _controller, controller);
         Publish(new SessionSnapshot(ShellActivityState.Idle));
         return controller;
+    }
+
+    /// <summary>
+    /// Checks only the structural constraints enforced again by <see cref="GeminiClient"/> without
+    /// retaining, logging, or comparing the secret.
+    /// </summary>
+    /// <param name="apiKey">DPAPI-unprotected key read for this user.</param>
+    /// <returns>Whether capture may begin without a guaranteed missing-key failure later.</returns>
+    internal static bool IsUsableGeminiApiKey(string? apiKey)
+    {
+        var normalized = apiKey?.Trim();
+        return normalized is { Length: > 0 and <= 512 } &&
+               !normalized.Any(char.IsControl);
     }
 
     private static GeminiAudioConsent? CreateConsent(AppSettings settings) =>

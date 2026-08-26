@@ -12,7 +12,9 @@ using MirrorPowerAI.Windows.UI;
 using WpfCheckBox = System.Windows.Controls.CheckBox;
 using WpfComboBox = System.Windows.Controls.ComboBox;
 using WpfPasswordBox = System.Windows.Controls.PasswordBox;
+using WpfProgressBar = System.Windows.Controls.ProgressBar;
 using WpfTextBox = System.Windows.Controls.TextBox;
+using WpfTextBlock = System.Windows.Controls.TextBlock;
 
 namespace MirrorPowerAI.Windows.Diagnostics;
 
@@ -30,6 +32,7 @@ internal sealed class UiDiagnostic
     private static readonly TimeSpan CleanupTimeout = TimeSpan.FromSeconds(2);
     private const string DiagnosticQuestion = "Pregunta de diagnóstico de interfaz.";
     private const string DiagnosticAnswer = "Respuesta de diagnóstico de interfaz.";
+    private const string DiagnosticStatus = "Estado de diagnóstico de interfaz.";
 
     /// <summary>
     /// Renders, validates, closes, and clears the two WPF windows without starting a user session.
@@ -140,7 +143,28 @@ internal sealed class UiDiagnostic
             {
                 settingsWindow = null;
                 overlayPresenter = new OverlayPresenter(new OverlayProtectionService());
-                var overlayResult = overlayPresenter.TryShow(DiagnosticQuestion, DiagnosticAnswer);
+                var statusResult = overlayPresenter.TryShowStatus(DiagnosticStatus);
+                if (!statusResult.WasShown)
+                {
+                    failure = UiDiagnosticFailure.OverlayProtectionFailed;
+                }
+                else
+                {
+                    overlayWindow = FindDisplayedOverlay();
+                    if (overlayWindow is null || !await AwaitWindowReadyAsync(overlayWindow, operationToken))
+                    {
+                        failure = UiDiagnosticFailure.OverlayNotRendered;
+                    }
+                    else
+                    {
+                        failure = UiDiagnosticContract.ValidateSessionStatusWindow(overlayWindow);
+                    }
+                }
+            }
+
+            if (failure == UiDiagnosticFailure.None)
+            {
+                var overlayResult = overlayPresenter!.TryShow(DiagnosticQuestion, DiagnosticAnswer);
                 if (!overlayResult.WasShown)
                 {
                     failure = UiDiagnosticFailure.OverlayProtectionFailed;
@@ -155,7 +179,8 @@ internal sealed class UiDiagnostic
                     else
                     {
                         failure = UiDiagnosticContract.ValidateOverlayWindow(overlayWindow);
-                        if (failure == UiDiagnosticFailure.None && !await AwaitAnswerFocusAsync(overlayWindow, operationToken))
+                        if (failure == UiDiagnosticFailure.None &&
+                            !await AwaitAnswerFocusAsync(overlayWindow, operationToken))
                         {
                             failure = UiDiagnosticFailure.OverlayFocusMissing;
                         }
@@ -552,6 +577,36 @@ internal static class UiDiagnosticContract
             InspectControl(window, "QuestionTextBox", typeof(WpfTextBox)),
             InspectControl(window, "AnswerTextBox", typeof(WpfTextBox)),
         ]) == UiDiagnosticFailure.None
+            ? UiDiagnosticFailure.None
+            : UiDiagnosticFailure.OverlayControlsInvalid;
+    }
+
+    /// <summary>Checks the protected non-activating session-status mode and its live region.</summary>
+    /// <param name="window">The rendered protected status window.</param>
+    /// <returns>A categorical failure, or <see cref="UiDiagnosticFailure.None"/>.</returns>
+    internal static UiDiagnosticFailure ValidateSessionStatusWindow(OverlayWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+
+        if (!HasRenderedWindow(window))
+        {
+            return UiDiagnosticFailure.OverlayNotRendered;
+        }
+
+        if (!HasAutomationName(window))
+        {
+            return UiDiagnosticFailure.OverlayWindowAutomationMissing;
+        }
+
+        var statusControls = ValidateCriticalControls(
+            [InspectControl(window, "StatusTextBlock", typeof(WpfTextBlock))]);
+        var progressControl = InspectControl(window, "StatusProgressBar", typeof(WpfProgressBar));
+        var answerControl = InspectControl(window, "AnswerTextBox", typeof(WpfTextBox));
+        return statusControls == UiDiagnosticFailure.None &&
+               progressControl.Exists &&
+               progressControl.HasAutomationName &&
+               answerControl.Exists &&
+               !answerControl.IsVisible
             ? UiDiagnosticFailure.None
             : UiDiagnosticFailure.OverlayControlsInvalid;
     }

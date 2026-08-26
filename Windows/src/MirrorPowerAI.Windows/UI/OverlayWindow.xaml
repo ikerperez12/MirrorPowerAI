@@ -18,14 +18,40 @@
         ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="Manual"
         KeyDown="OnWindowKeyDown">
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
+    <Grid>
+        <Border x:Name="StatusPanel"
+                Margin="16"
+                Padding="18"
+                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                BorderThickness="1"
+                Visibility="Collapsed">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock FontSize="20"
+                           FontWeight="SemiBold"
+                           automation:AutomationProperties.HeadingLevel="Level1"
+                           Text="{loc:Loc OverlayTitle}" />
+                <ProgressBar x:Name="StatusProgressBar"
+                             Height="8"
+                             Margin="0,16,0,14"
+                             IsIndeterminate="True"
+                             IsTabStop="False"
+                             automation:AutomationProperties.Name="{loc:Loc OverlayProgressName}" />
+                <TextBlock x:Name="StatusTextBlock"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap"
+                           automation:AutomationProperties.LiveSetting="Assertive" />
+            </StackPanel>
+        </Border>
+
+        <Grid x:Name="ResultPanel" Margin="20">
+            <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+            </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
                    Margin="0,0,0,8"
@@ -73,5 +99,6 @@
                 IsCancel="True"
                 Click="OnCloseClick"
                 Content="{loc:Loc CloseButton}" />
+        </Grid>
     </Grid>
 </Window>

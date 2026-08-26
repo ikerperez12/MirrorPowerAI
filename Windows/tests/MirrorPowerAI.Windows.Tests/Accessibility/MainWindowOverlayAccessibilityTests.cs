@@ -22,6 +22,29 @@ namespace MirrorPowerAI.Windows.Tests.Accessibility;
 public sealed class MainWindowOverlayAccessibilityTests
 {
     [Fact]
+    public async Task ReloadAsync_MissingApiKey_ShowsActionableVisibleStatusBeforeCapture()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var settingsStore = new JsonSettingsStore(Path.Combine(temporaryDirectory.Path, "settings.json"));
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var window = new MainWindow(
+                settingsStore,
+                new EmptySecretStore(),
+                new TestAudioDeviceCatalog(),
+                LocalizationService.Current);
+
+            await window.ReloadAsync();
+
+            var status = GetTextBlock(window, "StatusText");
+            Assert.Equal(Visibility.Visible, status.Visibility);
+            Assert.Contains(LocalizationService.Current["ApiKeyRequired"], status.Text, StringComparison.Ordinal);
+            Assert.Equal(status.Text, AutomationProperties.GetName(status));
+        });
+    }
+
+    [Fact]
     public async Task ReloadAsync_ProtectedSettingsLoadFailureBeforeShow_AnnouncesOnceAfterWindowIsVisible()
     {
         using var temporaryDirectory = new TemporaryDirectory();
@@ -152,6 +175,53 @@ public sealed class MainWindowOverlayAccessibilityTests
         });
     }
 
+    [Fact]
+    public async Task ProtectedStatusOverlay_AnnouncesGenericStateWithoutExposingResultControls()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var window = new OverlayWindow
+            {
+                Left = -10000,
+                Top = -10000,
+                ShowActivated = false,
+            };
+            var announced = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            window.StatusAnnouncementRaised += (_, _) => announced.TrySetResult();
+            const string statusMessage = "Listening to selected audio.";
+
+            try
+            {
+                window.SetProtectedStatus(statusMessage, isBusy: true);
+                window.Show();
+                await announced.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+                var status = Assert.IsType<WpfTextBlock>(window.FindName("StatusTextBlock"));
+                var progress = Assert.IsType<System.Windows.Controls.ProgressBar>(
+                    window.FindName("StatusProgressBar"));
+                var answer = GetTextBox(window, "AnswerTextBox");
+                Assert.Equal(Visibility.Visible, status.Visibility);
+                Assert.Equal(
+                    SystemParameters.ClientAreaAnimation ? Visibility.Visible : Visibility.Collapsed,
+                    progress.Visibility);
+                Assert.False(answer.IsVisible);
+                Assert.Equal(statusMessage, status.Text);
+                Assert.Equal(statusMessage, AutomationProperties.GetName(status));
+
+                window.Close();
+                Assert.Equal(string.Empty, status.Text);
+                Assert.Equal(string.Empty, answer.Text);
+            }
+            finally
+            {
+                if (window.IsVisible)
+                {
+                    window.Close();
+                }
+            }
+        });
+    }
+
     private static WpfTextBlock GetTextBlock(MainWindow window, string name) =>
         Assert.IsType<WpfTextBlock>(window.FindName(name));
 
@@ -199,6 +269,21 @@ public sealed class MainWindowOverlayAccessibilityTests
             return name == MainWindow.GeminiApiKeySecretName
                 ? Task.FromException<string?>(new CryptographicException("secret-that-must-not-appear"))
                 : Task.FromException<string?>(new IOException("secret-that-must-not-appear"));
+        }
+
+        public Task SetSecretAsync(string name, string value, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task DeleteSecretAsync(string name, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class EmptySecretStore : ISecretStore
+    {
+        public Task<string?> GetSecretAsync(string name, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<string?>(null);
         }
 
         public Task SetSecretAsync(string name, string value, CancellationToken cancellationToken = default) =>

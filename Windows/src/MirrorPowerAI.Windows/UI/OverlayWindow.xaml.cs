@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -8,6 +9,7 @@ using Microsoft.Win32;
 using MirrorPowerAI.Windows.Platform;
 using Forms = System.Windows.Forms;
 using WpfTextBox = System.Windows.Controls.TextBox;
+using WpfTextBlock = System.Windows.Controls.TextBlock;
 
 namespace MirrorPowerAI.Windows.UI;
 
@@ -16,10 +18,20 @@ namespace MirrorPowerAI.Windows.UI;
 /// </summary>
 public partial class OverlayWindow : Window
 {
+    private const double ResultWidth = 720;
+    private const double ResultHeight = 480;
+    private const double ResultMinimumWidth = 420;
+    private const double ResultMinimumHeight = 280;
+    private const double StatusWidth = 420;
+    private const double StatusHeight = 220;
+    private const double StatusMinimumWidth = 380;
+    private const double StatusMinimumHeight = 180;
     private readonly IOverlayDisplaySettingsChangeSource _displaySettingsChangeSource;
     private readonly IOverlayMonitorPlacementService _monitorPlacementService;
     private bool _contentAnnouncementPending;
     private bool _contentAnnouncementScheduled;
+    private bool _statusAnnouncementPending;
+    private bool _statusAnnouncementScheduled;
     private int _displaySettingsSubscribed;
     private int _displaySettingsRepositionQueued;
 
@@ -50,6 +62,12 @@ public partial class OverlayWindow : Window
     /// </summary>
     internal event EventHandler<OverlayContentAnnouncementEventArgs>? ContentAnnouncementRaised;
 
+    /// <summary>
+    /// Raised after a generic visible session status is submitted to UI Automation. The event does
+    /// not expose the localized status text.
+    /// </summary>
+    internal event EventHandler? StatusAnnouncementRaised;
+
     /// <summary>Inserts plain text after the owning presenter verifies capture exclusion.</summary>
     /// <param name="question">Transcribed question.</param>
     /// <param name="answer">Generated answer.</param>
@@ -57,10 +75,34 @@ public partial class OverlayWindow : Window
     {
         Dispatcher.VerifyAccess();
         ArgumentException.ThrowIfNullOrWhiteSpace(answer);
+        ConfigureResultLayout();
+        _statusAnnouncementPending = false;
+        StatusTextBlock.ClearValue(AutomationProperties.NameProperty);
+        StatusTextBlock.Text = string.Empty;
         QuestionTextBox.Text = question ?? string.Empty;
         AnswerTextBox.Text = answer;
         _contentAnnouncementPending = true;
         ScheduleContentAnnouncement();
+    }
+
+    /// <summary>Shows a generic capture or processing state after display-affinity verification.</summary>
+    /// <param name="status">Localized status containing no user content.</param>
+    /// <param name="isBusy">Whether to show indeterminate progress.</param>
+    public void SetProtectedStatus(string status, bool isBusy)
+    {
+        Dispatcher.VerifyAccess();
+        ArgumentException.ThrowIfNullOrWhiteSpace(status);
+        _contentAnnouncementPending = false;
+        QuestionTextBox.Clear();
+        AnswerTextBox.Clear();
+        ConfigureStatusLayout();
+        StatusProgressBar.Visibility = isBusy && SystemParameters.ClientAreaAnimation
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        StatusTextBlock.Text = status;
+        AutomationProperties.SetName(StatusTextBlock, status);
+        _statusAnnouncementPending = true;
+        ScheduleStatusAnnouncement();
     }
 
     /// <summary>Clears all potentially sensitive text before closing or after a protection failure.</summary>
@@ -68,8 +110,11 @@ public partial class OverlayWindow : Window
     {
         Dispatcher.VerifyAccess();
         _contentAnnouncementPending = false;
+        _statusAnnouncementPending = false;
         QuestionTextBox.Clear();
         AnswerTextBox.Clear();
+        StatusTextBlock.Text = string.Empty;
+        StatusTextBlock.ClearValue(AutomationProperties.NameProperty);
     }
 
     /// <summary>Centers and bounds the overlay inside the working area of the monitor under the pointer.</summary>
@@ -89,7 +134,11 @@ public partial class OverlayWindow : Window
                 screen.WorkingArea.Left,
                 screen.WorkingArea.Top,
                 screen.WorkingArea.Right,
-                screen.WorkingArea.Bottom))
+                screen.WorkingArea.Bottom,
+                Width,
+                Height,
+                MinWidth,
+                MinHeight))
         {
             return;
         }
@@ -101,8 +150,10 @@ public partial class OverlayWindow : Window
         var workingWidth = Math.Max(1, bottomRight.X - topLeft.X);
         var workingHeight = Math.Max(1, bottomRight.Y - topLeft.Y);
 
-        Width = Math.Max(MinWidth, Math.Min(720, workingWidth * 0.9));
-        Height = Math.Max(MinHeight, Math.Min(480, workingHeight * 0.8));
+        var preferredWidth = double.IsFinite(Width) && Width > 0 ? Width : ResultWidth;
+        var preferredHeight = double.IsFinite(Height) && Height > 0 ? Height : ResultHeight;
+        Width = Math.Max(MinWidth, Math.Min(preferredWidth, workingWidth * 0.9));
+        Height = Math.Max(MinHeight, Math.Min(preferredHeight, workingHeight * 0.8));
         Left = topLeft.X + Math.Max(0, (workingWidth - Width) / 2);
         Top = topLeft.Y + Math.Max(0, (workingHeight - Height) / 2);
     }
@@ -111,6 +162,29 @@ public partial class OverlayWindow : Window
     {
         SubscribeToDisplaySettingsChanges();
         ScheduleContentAnnouncement();
+        ScheduleStatusAnnouncement();
+    }
+
+    private void ConfigureResultLayout()
+    {
+        StatusPanel.Visibility = Visibility.Collapsed;
+        ResultPanel.Visibility = Visibility.Visible;
+        MinWidth = ResultMinimumWidth;
+        MinHeight = ResultMinimumHeight;
+        Width = ResultWidth;
+        Height = ResultHeight;
+        ResizeMode = ResizeMode.CanResizeWithGrip;
+    }
+
+    private void ConfigureStatusLayout()
+    {
+        ResultPanel.Visibility = Visibility.Collapsed;
+        StatusPanel.Visibility = Visibility.Visible;
+        MinWidth = StatusMinimumWidth;
+        MinHeight = StatusMinimumHeight;
+        Width = StatusWidth;
+        Height = StatusHeight;
+        ResizeMode = ResizeMode.NoResize;
     }
 
     private void SubscribeToDisplaySettingsChanges()
@@ -219,6 +293,39 @@ public partial class OverlayWindow : Window
         RaiseLiveRegionChanged(AnswerTextBox, OverlayContentRegion.Answer);
         _contentAnnouncementPending = false;
         AnswerTextBox.Focus();
+    }
+
+    private void ScheduleStatusAnnouncement()
+    {
+        if (!_statusAnnouncementPending ||
+            _statusAnnouncementScheduled ||
+            !IsVisible ||
+            !StatusTextBlock.IsVisible ||
+            Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        _statusAnnouncementScheduled = true;
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(AnnounceStatusWhenVisible));
+    }
+
+    private void AnnounceStatusWhenVisible()
+    {
+        _statusAnnouncementScheduled = false;
+        if (!_statusAnnouncementPending ||
+            !IsVisible ||
+            !StatusTextBlock.IsVisible ||
+            string.IsNullOrWhiteSpace(StatusTextBlock.Text))
+        {
+            return;
+        }
+
+        var peer = UIElementAutomationPeer.CreatePeerForElement(StatusTextBlock)
+            ?? new TextBlockAutomationPeer(StatusTextBlock);
+        peer.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+        _statusAnnouncementPending = false;
+        StatusAnnouncementRaised?.Invoke(this, EventArgs.Empty);
     }
 
     private void RaiseLiveRegionChanged(WpfTextBox textBox, OverlayContentRegion region)

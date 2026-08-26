@@ -52,6 +52,48 @@ public sealed class OverlayPresenter
         return OverlayShowResult.Success;
     }
 
+    /// <summary>
+    /// Shows a generic protected session state without activating the window or stealing focus from
+    /// the meeting, browser, or presentation application.
+    /// </summary>
+    /// <param name="status">Localized status containing no user content or raw diagnostics.</param>
+    /// <param name="isBusy">Whether indeterminate progress should be visible.</param>
+    /// <returns>A result safe to report without exposing the status text.</returns>
+    public OverlayShowResult TryShowStatus(string status, bool isBusy = true)
+    {
+        Dispatcher.CurrentDispatcher.VerifyAccess();
+        ArgumentException.ThrowIfNullOrWhiteSpace(status);
+
+        if (_window is { IsVisible: true } existingWindow)
+        {
+            existingWindow.SetProtectedStatus(status, isBusy);
+            existingWindow.PositionOnActiveMonitor();
+            return OverlayShowResult.Success;
+        }
+
+        Close();
+        var candidate = new OverlayWindow
+        {
+            ShowActivated = false,
+        };
+        var protection = _protectionService is OverlayProtectionService windowsProtection
+            ? windowsProtection.ProtectAndVerify(candidate)
+            : ProtectThroughContract(_protectionService, candidate);
+        if (!protection.IsProtected)
+        {
+            candidate.ClearSensitiveContent();
+            candidate.Close();
+            return new OverlayShowResult(false, protection.Win32Error, protection.Message);
+        }
+
+        candidate.SetProtectedStatus(status, isBusy);
+        candidate.PositionOnActiveMonitor();
+        candidate.Closed += OnWindowClosed;
+        _window = candidate;
+        candidate.Show();
+        return OverlayShowResult.Success;
+    }
+
     private static CaptureProtectionResult ProtectThroughContract(
         IOverlayProtectionService protectionService,
         OverlayWindow window)

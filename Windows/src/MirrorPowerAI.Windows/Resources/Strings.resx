@@ -37,6 +37,7 @@
   <data name="SessionUnavailable" xml:space="preserve"><value>El motor de sesión todavía no está conectado.</value></data>
   <data name="UnexpectedError" xml:space="preserve"><value>La operación no pudo completarse.</value></data>
   <data name="SessionInvalidConfiguration" xml:space="preserve"><value>Revisa la configuración antes de iniciar la captura.</value></data>
+  <data name="SessionApiKeyRequired" xml:space="preserve"><value>Introduce y guarda una clave API de Gemini antes de iniciar la captura.</value></data>
   <data name="SessionProviderUnavailable" xml:space="preserve"><value>El proveedor de transcripción seleccionado no está disponible.</value></data>
   <data name="SessionEmptyAudio" xml:space="preserve"><value>No se detectó audio de salida utilizable.</value></data>
   <data name="SessionEmptyTranscript" xml:space="preserve"><value>No se pudo obtener una transcripción.</value></data>
@@ -48,7 +49,7 @@
   <data name="SettingsTitle" xml:space="preserve"><value>Configuración de MirrorPowerAI</value></data>
   <data name="SettingsIntro" xml:space="preserve"><value>Elige la fuente de audio, configura Gemini y guarda. Después pulsa Alt+Mayús+L para iniciar la escucha y vuelve a pulsarlo para procesar la pregunta.</value></data>
   <data name="ApiKeyLabel" xml:space="preserve"><value>Clave API de Gemini</value></data>
-  <data name="ApiKeyHelp" xml:space="preserve"><value>Se cifra con DPAPI para este usuario de Windows y nunca se escribe en texto plano.</value></data>
+  <data name="ApiKeyHelp" xml:space="preserve"><value>Obligatoria para generar la respuesta final, incluso con Whisper local. Se cifra con DPAPI para este usuario y nunca se escribe en texto plano.</value></data>
   <data name="ContextLabel" xml:space="preserve"><value>Contexto del proyecto</value></data>
   <data name="ContextHelp" xml:space="preserve"><value>Máximo 16.000 caracteres. Se envía sólo al solicitar la respuesta, no al transcribir con Gemini Audio.</value></data>
   <data name="ProviderGroup" xml:space="preserve"><value>Transcripción</value></data>
@@ -85,7 +86,11 @@
   <data name="StartupFailedMessage" xml:space="preserve"><value>La aplicación no pudo inicializar sus componentes de Windows. Cierra cualquier instancia abierta y vuelve a intentarlo.</value></data>
   <data name="ApiKeyRequired" xml:space="preserve"><value>Introduce una clave API de Gemini.</value></data>
   <data name="ConsentRequired" xml:space="preserve"><value>Para usar Gemini Audio debes aceptar explícitamente el envío de la grabación.</value></data>
-  <data name="OverlayTitle" xml:space="preserve"><value>Respuesta de MirrorPowerAI</value></data>
+  <data name="GeminiAudioReauthorizationRequired" xml:space="preserve"><value>Gemini Audio está bloqueado en este inicio. Marca de nuevo el consentimiento y pulsa Guardar antes de usar Alt+Mayús+L.</value></data>
+  <data name="OverlayTitle" xml:space="preserve"><value>MirrorPowerAI — panel protegido</value></data>
+  <data name="OverlayProgressName" xml:space="preserve"><value>Actividad de MirrorPowerAI en curso</value></data>
+  <data name="OverlayStatusListening" xml:space="preserve"><value>Escuchando el audio seleccionado… Pulsa Alt+Mayús+L para detener y procesar.</value></data>
+  <data name="OverlayStatusProcessing" xml:space="preserve"><value>Procesando el audio y preparando la respuesta…</value></data>
   <data name="QuestionHeading" xml:space="preserve"><value>Pregunta detectada</value></data>
   <data name="AnswerHeading" xml:space="preserve"><value>Respuesta</value></data>
   <data name="CloseButton" xml:space="preserve"><value>Cerrar</value></data>
