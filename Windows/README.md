@@ -84,7 +84,7 @@ Comandos parciales:
    - **Una aplicación concreta**: inicia antes la reunión o reproducción, pulsa **Actualizar** y selecciona la aplicación. Windows captura el árbol de ese proceso sin mezclar las demás aplicaciones.
 4. Revisa el contexto del proyecto, idioma y dispositivo de salida si elegiste el audio completo del sistema.
 5. Mantén **Whisper local** para máxima privacidad o selecciona **Gemini Audio**, acepta el consentimiento de nube y guarda la configuración. Por privacidad, Gemini Audio vuelve a quedar bloqueado al reiniciar la aplicación hasta que confirmes y guardes esa elección de nuevo.
-6. Reproduce audio o entra en la reunión y pulsa `Alt+Shift+L`: aparecerá un indicador protegido **Escuchando…** sin quitar el foco a la reunión. Vuelve a pulsarlo para detener; el mismo indicador mostrará **Procesando…** hasta que aparezca la respuesta o un error accionable.
+6. Reproduce audio o entra en la reunión y pulsa `Alt+Shift+L`: aparecerá un indicador protegido sin quitar el foco a la reunión. Mientras la fuente entregue silencio dirá **aún no se detecta audio**; cuando una muestra supere el mismo umbral usado para validar la grabación cambiará a **audio detectado correctamente**. Vuelve a pulsarlo para detener; el mismo indicador mostrará **Procesando…** hasta que aparezca la respuesta o un error accionable. Si nunca cambia a audio detectado, actualiza o corrige la fuente antes de procesar.
 
 No existe fallback silencioso entre fuentes: si seleccionas una aplicación y deja de estar disponible, la sesión falla de forma visible y debes actualizar la lista o elegir conscientemente el audio completo del sistema.
 
@@ -120,7 +120,7 @@ Consulta [PRIVACY.md](docs/PRIVACY.md) para el flujo de datos completo.
 - Windows 10, ARM64, MSIX, firma de código, autoactualización y publicación de releases quedan fuera de esta primera versión.
 - La etiqueta estable requiere completar la matriz manual de [QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
 - Los avisos de bandeja para cambios de estado son genéricos y localizados (`Capturando`, `Procesando`, `Error` o `Preparado`). El estado inicial `Preparado` no genera aviso; estos avisos nunca incluyen API key, contexto, audio, pregunta, respuesta ni detalle del proveedor.
-- El indicador de captura/procesamiento se protege con la misma afinidad que la respuesta y no se activa, por lo que no debe robar el foco de Teams, Discord o el navegador. Si Windows no confirma la exclusión de captura, el indicador falla de forma segura y permanece el feedback de bandeja.
+- El indicador de captura/procesamiento se protege con la misma afinidad que la respuesta y no se activa, por lo que no debe robar el foco de Teams, Discord o el navegador. Distingue de forma local entre silencio y señal detectada sin mostrar niveles, conservar muestras adicionales ni emitir telemetría. Si Windows no confirma la exclusión de captura, el indicador falla de forma segura y permanece el feedback de bandeja.
 
 ## Benchmark de Whisper local
 

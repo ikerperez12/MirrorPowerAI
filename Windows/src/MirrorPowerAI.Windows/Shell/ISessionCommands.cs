@@ -50,11 +50,13 @@ public enum ShellActivityState
 /// <param name="Question">Latest transcription; only rendered in a protected overlay.</param>
 /// <param name="Answer">Latest answer; only rendered in a protected overlay.</param>
 /// <param name="UserMessage">Resource key for a sanitized status or error message.</param>
+/// <param name="AudioSignalDetected">Whether usable audio has been observed during capture.</param>
 public sealed record SessionSnapshot(
     ShellActivityState Activity,
     string? Question = null,
     string? Answer = null,
-    string? UserMessage = null)
+    string? UserMessage = null,
+    bool AudioSignalDetected = false)
 {
     /// <summary>Gets whether a complete result is available for protected display.</summary>
     public bool HasResult => !string.IsNullOrWhiteSpace(Answer);

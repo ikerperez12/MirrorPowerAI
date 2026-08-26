@@ -25,11 +25,13 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
     private readonly GeminiClient _geminiClient;
     private readonly IAnswerService _answerService;
     private readonly IGeminiAudioConsentGate _geminiAudioConsentGate;
+    private readonly Func<AppSettings, string?, IAudioCaptureService> _audioCaptureFactory;
     private readonly bool _ownsGeminiAudioConsentGate;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private SessionSnapshot _snapshot = new(ShellActivityState.Idle);
     private SessionController? _controller;
     private IAudioCaptureService? _audioCaptureService;
+    private IAudioCaptureActivitySource? _audioActivitySource;
     private bool _disposed;
 
     /// <summary>Initializes the Core session bridge with long-lived provider dependencies.</summary>
@@ -44,6 +46,30 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
         WhisperLocalTranscriptionService localTranscriptionService,
         GeminiClient geminiClient,
         IGeminiAudioConsentGate? geminiAudioConsentGate = null)
+        : this(
+            settingsStore,
+            secretStore,
+            localTranscriptionService,
+            geminiClient,
+            geminiAudioConsentGate,
+            CreateAudioCapture)
+    {
+    }
+
+    /// <summary>Initializes the bridge with an injectable capture factory for deterministic tests.</summary>
+    /// <param name="settingsStore">Bounded non-secret settings storage.</param>
+    /// <param name="secretStore">DPAPI-protected key and context storage.</param>
+    /// <param name="localTranscriptionService">Long-lived local Whisper adapter.</param>
+    /// <param name="geminiClient">Long-lived typed Gemini client.</param>
+    /// <param name="geminiAudioConsentGate">Shared process-level fail-closed Gemini Audio privacy barrier.</param>
+    /// <param name="audioCaptureFactory">Creates the source selected by fresh settings.</param>
+    internal CoreSessionCommands(
+        IAppSettingsStore settingsStore,
+        ISecretStore secretStore,
+        WhisperLocalTranscriptionService localTranscriptionService,
+        GeminiClient geminiClient,
+        IGeminiAudioConsentGate? geminiAudioConsentGate,
+        Func<AppSettings, string?, IAudioCaptureService> audioCaptureFactory)
     {
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
         _secretStore = secretStore ?? throw new ArgumentNullException(nameof(secretStore));
@@ -51,6 +77,8 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
             throw new ArgumentNullException(nameof(localTranscriptionService));
         _geminiClient = geminiClient ?? throw new ArgumentNullException(nameof(geminiClient));
         _geminiAudioConsentGate = geminiAudioConsentGate ?? new GeminiAudioConsentGate();
+        _audioCaptureFactory = audioCaptureFactory ??
+            throw new ArgumentNullException(nameof(audioCaptureFactory));
         _ownsGeminiAudioConsentGate = geminiAudioConsentGate is null;
         _answerService = new GeminiAnswerService(_geminiClient);
     }
@@ -204,7 +232,7 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
             _geminiClient,
             () => consent,
             () => _geminiAudioConsentGate.TryAuthorize(consent));
-        var audioCapture = CreateAudioCapture(settings, options.OutputDeviceId);
+        var audioCapture = _audioCaptureFactory(settings, options.OutputDeviceId);
         var controller = new SessionController(
             audioCapture,
             [_localTranscriptionService, geminiTranscription],
@@ -212,6 +240,11 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
             options);
         controller.StateChanged += OnControllerStateChanged;
         _audioCaptureService = audioCapture;
+        _audioActivitySource = audioCapture as IAudioCaptureActivitySource;
+        if (_audioActivitySource is not null)
+        {
+            _audioActivitySource.AudibleSignalDetected += OnAudibleSignalDetected;
+        }
         Volatile.Write(ref _controller, controller);
         Publish(new SessionSnapshot(ShellActivityState.Idle));
         return controller;
@@ -277,7 +310,21 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
         Publish(CreateSnapshot(controller));
     }
 
-    private static SessionSnapshot CreateSnapshot(SessionController controller)
+    private void OnAudibleSignalDetected(object? sender, EventArgs eventArgs)
+    {
+        if (!ReferenceEquals(sender, Volatile.Read(ref _audioActivitySource)))
+        {
+            return;
+        }
+
+        var controller = Volatile.Read(ref _controller);
+        if (controller?.State == SessionState.Capturing)
+        {
+            Publish(CreateSnapshot(controller));
+        }
+    }
+
+    private SessionSnapshot CreateSnapshot(SessionController controller)
     {
         var result = controller.LastResult;
         return new SessionSnapshot(
@@ -290,7 +337,9 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
             },
             result?.Transcript,
             result?.Answer,
-            MapFailureResourceKey(controller.LastFailure));
+            MapFailureResourceKey(controller.LastFailure),
+            AudioSignalDetected: controller.State == SessionState.Capturing &&
+                _audioActivitySource?.HasDetectedAudibleSignal == true);
     }
 
     private static string? MapFailureResourceKey(SessionFailure? failure) => failure?.Kind switch
@@ -314,6 +363,12 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
 
     private async Task DisposeCurrentControllerAsync()
     {
+        var audioActivitySource = Interlocked.Exchange(ref _audioActivitySource, null);
+        if (audioActivitySource is not null)
+        {
+            audioActivitySource.AudibleSignalDetected -= OnAudibleSignalDetected;
+        }
+
         var controller = Interlocked.Exchange(ref _controller, null);
         if (controller is not null)
         {

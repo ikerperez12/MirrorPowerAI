@@ -89,7 +89,8 @@
   <data name="GeminiAudioReauthorizationRequired" xml:space="preserve"><value>Gemini Audio is blocked for this launch. Select consent again and save before using Alt+Shift+L.</value></data>
   <data name="OverlayTitle" xml:space="preserve"><value>MirrorPowerAI — protected panel</value></data>
   <data name="OverlayProgressName" xml:space="preserve"><value>MirrorPowerAI activity in progress</value></data>
-  <data name="OverlayStatusListening" xml:space="preserve"><value>Listening to the selected audio… Press Alt+Shift+L to stop and process.</value></data>
+  <data name="OverlayStatusListening" xml:space="preserve"><value>Listening to the selected source, but no audio has been detected yet. Play the meeting voice and check the source. Press Alt+Shift+L to stop.</value></data>
+  <data name="OverlayStatusAudioDetected" xml:space="preserve"><value>Audio detected successfully. Press Alt+Shift+L when you are ready to stop and process.</value></data>
   <data name="OverlayStatusProcessing" xml:space="preserve"><value>Processing audio and preparing the response…</value></data>
   <data name="QuestionHeading" xml:space="preserve"><value>Detected question</value></data>
   <data name="AnswerHeading" xml:space="preserve"><value>Answer</value></data>

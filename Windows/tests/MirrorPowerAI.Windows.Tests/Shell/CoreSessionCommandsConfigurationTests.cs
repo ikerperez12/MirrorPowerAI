@@ -1,6 +1,8 @@
 using System.Net;
+using MirrorPowerAI.Core.Audio;
 using MirrorPowerAI.Core.Gemini;
 using MirrorPowerAI.Core.Security;
+using MirrorPowerAI.Windows.Audio;
 using MirrorPowerAI.Windows.Platform;
 using MirrorPowerAI.Windows.Shell;
 using MirrorPowerAI.Windows.Transcription;
@@ -64,6 +66,46 @@ public sealed class CoreSessionCommandsConfigurationTests
         Assert.True(CoreSessionCommands.IsUsableGeminiApiKey("  test-api-key  "));
     }
 
+    [Fact]
+    public async Task ToggleAsync_AudioActivityChangesSnapshotFromWaitingToDetected()
+    {
+        var leaseProvider = new FailingIfUsedModelLeaseProvider();
+        var inference = new FailingIfUsedInferenceEngine();
+        var localTranscription = new WhisperLocalTranscriptionService(
+            leaseProvider,
+            inference,
+            Path.GetTempPath());
+        using var handler = new RecordingHandler();
+        using var httpClient = new HttpClient(handler);
+        var geminiClient = new GeminiClient(
+            httpClient,
+            new StaticApiKeyProvider("unused-test-key"),
+            new GeminiClientOptions());
+        var audioCapture = new ActivityAudioCaptureService();
+        await using var commands = new CoreSessionCommands(
+            new InMemorySettingsStore(),
+            new ApiKeySecretStore(),
+            localTranscription,
+            geminiClient,
+            geminiAudioConsentGate: null,
+            (_, _) => audioCapture);
+        var snapshots = new List<SessionSnapshot>();
+        commands.StateChanged += (_, eventArgs) => snapshots.Add(eventArgs.Snapshot);
+
+        await commands.ToggleAsync(CancellationToken.None);
+        var waiting = snapshots[^1];
+        audioCapture.ReportAudibleSignal();
+        var detected = snapshots[^1];
+
+        Assert.Equal(ShellActivityState.Capturing, waiting.Activity);
+        Assert.False(waiting.AudioSignalDetected);
+        Assert.Equal(ShellActivityState.Capturing, detected.Activity);
+        Assert.True(detected.AudioSignalDetected);
+        Assert.Equal(0, leaseProvider.CallCount);
+        Assert.Equal(0, inference.CallCount);
+        Assert.Equal(0, handler.CallCount);
+    }
+
     private sealed class InMemorySettingsStore : IAppSettingsStore
     {
         public Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default)
@@ -89,6 +131,55 @@ public sealed class CoreSessionCommandsConfigurationTests
 
         public Task DeleteSecretAsync(string name, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class ApiKeySecretStore : ISecretStore
+    {
+        public Task<string?> GetSecretAsync(string name, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<string?>(
+                name == MainWindow.GeminiApiKeySecretName ? "test-api-key" : null);
+        }
+
+        public Task SetSecretAsync(string name, string value, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task DeleteSecretAsync(string name, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class ActivityAudioCaptureService :
+        IAudioCaptureService,
+        IAudioCaptureActivitySource
+    {
+        public event EventHandler? AudibleSignalDetected;
+
+        public bool IsCapturing { get; private set; }
+
+        public bool HasDetectedAudibleSignal { get; private set; }
+
+        public Task StartAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            IsCapturing = true;
+            HasDetectedAudibleSignal = false;
+            return Task.CompletedTask;
+        }
+
+        public Task<CapturedAudio> StopAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            IsCapturing = false;
+            HasDetectedAudibleSignal = false;
+            return Task.FromResult(new CapturedAudio(Array.Empty<byte>(), TimeSpan.Zero, false));
+        }
+
+        public void ReportAudibleSignal()
+        {
+            HasDetectedAudibleSignal = true;
+            AudibleSignalDetected?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private sealed class FailingIfUsedModelLeaseProvider : IWhisperModelLeaseProvider

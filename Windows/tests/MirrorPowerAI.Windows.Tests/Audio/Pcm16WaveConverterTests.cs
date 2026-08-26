@@ -109,6 +109,18 @@ public sealed class Pcm16WaveConverterTests
         _ = Assert.Throws<ArgumentException>(() => converter.Convert(new byte[3], format));
     }
 
+    [Fact]
+    public void ContainsAudibleSignal_SilentAndAudibleBuffers_UsesConfiguredThresholdWithoutAllocation()
+    {
+        // Arrange
+        var converter = new Pcm16WaveConverter();
+        var format = new AudioSampleFormat(16_000, 1, 16, AudioSampleEncoding.PcmInteger);
+
+        // Act and assert
+        Assert.False(converter.ContainsAudibleSignal(new byte[3_200], format));
+        Assert.True(converter.ContainsAudibleSignal(Pcm16Bytes([8_000, -8_000]), format));
+    }
+
     private static short ReadOutputSample(byte[] wave, int sampleIndex) =>
         BinaryPrimitives.ReadInt16LittleEndian(
             wave.AsSpan(44 + (sampleIndex * sizeof(short)), sizeof(short)));

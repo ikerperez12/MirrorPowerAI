@@ -89,7 +89,8 @@
   <data name="GeminiAudioReauthorizationRequired" xml:space="preserve"><value>Gemini Audio está bloqueado en este inicio. Marca de nuevo el consentimiento y pulsa Guardar antes de usar Alt+Mayús+L.</value></data>
   <data name="OverlayTitle" xml:space="preserve"><value>MirrorPowerAI — panel protegido</value></data>
   <data name="OverlayProgressName" xml:space="preserve"><value>Actividad de MirrorPowerAI en curso</value></data>
-  <data name="OverlayStatusListening" xml:space="preserve"><value>Escuchando el audio seleccionado… Pulsa Alt+Mayús+L para detener y procesar.</value></data>
+  <data name="OverlayStatusListening" xml:space="preserve"><value>Escuchando la fuente seleccionada, pero aún no se detecta audio. Reproduce la voz de la reunión y comprueba la fuente. Pulsa Alt+Mayús+L para detener.</value></data>
+  <data name="OverlayStatusAudioDetected" xml:space="preserve"><value>Audio detectado correctamente. Pulsa Alt+Mayús+L cuando quieras detener y procesar.</value></data>
   <data name="OverlayStatusProcessing" xml:space="preserve"><value>Procesando el audio y preparando la respuesta…</value></data>
   <data name="QuestionHeading" xml:space="preserve"><value>Pregunta detectada</value></data>
   <data name="AnswerHeading" xml:space="preserve"><value>Respuesta</value></data>

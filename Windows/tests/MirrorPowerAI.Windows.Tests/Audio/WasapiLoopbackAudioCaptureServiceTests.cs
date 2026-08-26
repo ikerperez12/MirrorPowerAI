@@ -38,6 +38,43 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_AudibleCapture_ReportsPrivacySafeActivityOnce()
+    {
+        // Arrange
+        var session = new FakeLoopbackCaptureSession(TestFormat, AudiblePcm16(1_600));
+        await using var service = CreateService(session);
+        var detections = 0;
+        service.AudibleSignalDetected += (_, _) => detections++;
+
+        // Act
+        await service.StartAsync();
+
+        // Assert
+        Assert.True(service.HasDetectedAudibleSignal);
+        Assert.Equal(1, detections);
+        _ = await service.StopAsync();
+        Assert.False(service.HasDetectedAudibleSignal);
+    }
+
+    [Fact]
+    public async Task StartAsync_SilentCapture_DoesNotReportFalseAudioActivity()
+    {
+        // Arrange
+        var session = new FakeLoopbackCaptureSession(TestFormat, new byte[3_200]);
+        await using var service = CreateService(session);
+        var detections = 0;
+        service.AudibleSignalDetected += (_, _) => detections++;
+
+        // Act
+        await service.StartAsync();
+
+        // Assert
+        Assert.False(service.HasDetectedAudibleSignal);
+        Assert.Equal(0, detections);
+        _ = await service.StopAsync();
+    }
+
+    [Fact]
     public async Task StopAsync_MaximumDurationReached_ReturnsBoundedCapture()
     {
         // Arrange

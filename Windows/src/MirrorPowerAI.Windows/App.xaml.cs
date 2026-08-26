@@ -428,7 +428,10 @@ public partial class App : System.Windows.Application, IDisposable
         {
             _lastDisplayedAnswer = null;
             ShowProtectedSessionStatus(
-                LocalizationService.Current["OverlayStatusListening"],
+                LocalizationService.Current[
+                    snapshot.AudioSignalDetected
+                        ? "OverlayStatusAudioDetected"
+                        : "OverlayStatusListening"],
                 isBusy: true);
         }
         else if (snapshot.Activity == ShellActivityState.Processing)

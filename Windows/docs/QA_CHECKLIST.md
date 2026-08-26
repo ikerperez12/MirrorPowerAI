@@ -9,7 +9,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 - [ ] Preflight de UI: ejecutar `./Windows/verify-ui.ps1` en una sesión local e interactiva. Comprueba el ciclo WPF real de configuración y overlay con texto fijo no sensible, carga valores predeterminados desde una ruta temporal aislada, valida los estados Local/Gemini, renderizado, UI Automation, foco lógico inicial de configuración, foco del resultado y limpieza; no usa configuración del usuario, DPAPI, audio real, red, modelos ni sesiones, no deja la ruta temporal creada y no sustituye comprobar físicamente el foco de teclado, accesibilidad o captura.
 - [ ] Abrir la aplicación normal y comprobar que Configuración aparece de forma visible, que cerrarla mantiene el icono de bandeja y que su menú se opera mediante teclado.
 - [ ] Pulsar físicamente `Alt+Shift+L` para iniciar/detener una sesión y comprobar que al salir no queda icono ni proceso residual.
-- [ ] Al iniciar captura aparece el indicador protegido **Escuchando…** sin activar su ventana ni quitar el foco de Teams/Discord/navegador; al detener cambia a **Procesando…** y un fallo muestra un mensaje genérico accionable.
+- [ ] Al iniciar captura aparece el indicador protegido **aún no se detecta audio** sin activar su ventana ni quitar el foco de Teams/Discord/navegador; al reproducir la conversación cambia a **audio detectado correctamente**, al detener cambia a **Procesando…** y un fallo muestra un mensaje genérico accionable.
 - [ ] Pulsar **Salir** inmediatamente después de **Guardar**: la aplicación espera el guardado; si supera 15 segundos permanece abierta, avisa sin datos sensibles y permite reintentar sin dejar configuración temporal ni cerrar dependencias en uso.
 - [ ] Mientras **Guardar** está activo, los campos y botones quedan deshabilitados; **Cancelar**, la **X** y una nueva petición de Configuración desde la bandeja no ocultan ni recargan valores parciales. Al terminar, los controles vuelven a estar disponibles y el estado se anuncia.
 - [ ] Durante una sesión, verificar que los cambios `Capturando`, `Procesando`, `Error` y regreso a `Preparado` ofrecen feedback de bandeja genérico y localizado, sin API key, contexto, audio, pregunta, respuesta ni detalle del proveedor; el arranque inicial en `Preparado` debe permanecer silencioso.
@@ -41,6 +41,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 - [ ] Auriculares.
 - [ ] **Todo el audio del sistema**: Teams de escritorio, Discord, Teams/Meet en Chrome y Teams/Meet en Edge; la conversación remota se captura desde el dispositivo elegido.
 - [ ] **Una aplicación concreta**: con reproducción activa, **Actualizar** muestra Chrome, Edge y Discord sin exponer títulos de pestaña/reunión; cada selección captura sólo esa aplicación en los casos soportados.
+- [ ] Para cada fuente global o por aplicación, el indicador permanece en **aún no se detecta audio** durante silencio y cambia una sola vez a **audio detectado correctamente** al recibir señal; nunca afirma que hay audio por el mero hecho de abrir WASAPI.
 - [ ] Cerrar o reiniciar la aplicación seleccionada produce un error visible y nunca cambia silenciosamente a la mezcla global.
 - [ ] Teams de escritorio queda documentado y probado en modo global; un resultado silencioso en aislamiento por aplicación no se presenta como compatible.
 - [ ] Cambio de dispositivo entre sesiones.
@@ -65,7 +66,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 - [ ] Toda la configuración se opera con Tab/Shift+Tab/Enter/Espacio/Escape.
 - [ ] Foco visible y orden lógico.
 - [ ] Narrator anuncia nombres, roles, valores, errores y cambios de estado.
-- [ ] Narrator anuncia una sola vez los cambios **Escuchando**, **Procesando** y error; el indicador respeta la preferencia de Windows de desactivar animaciones y el texto sigue siendo suficiente sin movimiento.
+- [ ] Narrator anuncia una sola vez los cambios **aún no se detecta audio**, **audio detectado correctamente**, **Procesando** y error; el indicador respeta la preferencia de Windows de desactivar animaciones y el texto sigue siendo suficiente sin movimiento.
 - [ ] Narrator y la configuración de notificaciones de Windows permiten detectar el feedback genérico de bandeja durante una transición de sesión, sin revelar contenido sensible.
 - [ ] Tema claro y oscuro.
 - [ ] Alto contraste.

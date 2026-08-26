@@ -7,7 +7,10 @@ namespace MirrorPowerAI.Windows.Audio;
 /// <summary>
 /// Coordinates bounded, in-memory WASAPI loopback capture and normalization.
 /// </summary>
-public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IAsyncDisposable
+public sealed class WasapiLoopbackAudioCaptureService :
+    IAudioCaptureService,
+    IAudioCaptureActivitySource,
+    IAsyncDisposable
 {
     /// <summary>The hard v1 capture-duration ceiling.</summary>
     public static readonly TimeSpan AbsoluteMaximumDuration = TimeSpan.FromMinutes(5);
@@ -29,6 +32,9 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
     private readonly SemaphoreSlim _gate = new(1, 1);
     private CaptureContext? _activeCapture;
     private int _disposed;
+
+    /// <inheritdoc />
+    public event EventHandler? AudibleSignalDetected;
 
     /// <summary>
     /// Initializes a service using the system default render endpoint and production adapters.
@@ -117,6 +123,10 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
     public bool IsCapturing => Volatile.Read(ref _activeCapture) is not null;
 
     /// <inheritdoc />
+    public bool HasDetectedAudibleSignal =>
+        Volatile.Read(ref _activeCapture)?.HasDetectedAudibleSignal == true;
+
+    /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
@@ -139,7 +149,12 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
                 var durationBound = checked((long)Math.Ceiling(
                     session.SourceFormat.AverageBytesPerSecond * _maximumDuration.TotalSeconds));
                 var rawByteLimit = Math.Min(_maximumRawBytes, durationBound + session.SourceFormat.BlockAlign);
-                context = new CaptureContext(endpoint, session, rawByteLimit);
+                context = new CaptureContext(
+                    endpoint,
+                    session,
+                    rawByteLimit,
+                    _converter,
+                    RaiseAudibleSignalDetected);
                 session.DataAvailable += context.OnDataAvailable;
                 session.Stopped += context.OnStopped;
 
@@ -421,6 +436,27 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
         }
     }
 
+    private void RaiseAudibleSignalDetected()
+    {
+        var handlers = AudibleSignalDetected;
+        if (handlers is null)
+        {
+            return;
+        }
+
+        foreach (EventHandler handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(this, EventArgs.Empty);
+            }
+            catch (Exception)
+            {
+                // Presentation observers cannot interrupt the real-time audio callback.
+            }
+        }
+    }
+
     private enum CaptureStopReason
     {
         None,
@@ -437,16 +473,24 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
         private readonly MemoryStream _rawAudio = new();
         private readonly object _bufferSync = new();
         private readonly long _rawByteLimit;
+        private readonly Pcm16WaveConverter _signalDetector;
+        private readonly Action _onAudibleSignalDetected;
         private int _stopReason;
+        private int _hasDetectedAudibleSignal;
 
         public CaptureContext(
             AudioEndpoint endpoint,
             ILoopbackCaptureSession session,
-            long rawByteLimit)
+            long rawByteLimit,
+            Pcm16WaveConverter signalDetector,
+            Action onAudibleSignalDetected)
         {
             Endpoint = endpoint;
             Session = session;
             _rawByteLimit = rawByteLimit;
+            _signalDetector = signalDetector ?? throw new ArgumentNullException(nameof(signalDetector));
+            _onAudibleSignalDetected = onAudibleSignalDetected ??
+                throw new ArgumentNullException(nameof(onAudibleSignalDetected));
         }
 
         public AudioEndpoint Endpoint { get; }
@@ -462,16 +506,19 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
 
         public CaptureStopReason StopReason => (CaptureStopReason)Volatile.Read(ref _stopReason);
 
+        public bool HasDetectedAudibleSignal => Volatile.Read(ref _hasDetectedAudibleSignal) != 0;
+
         public void OnDataAvailable(object? sender, LoopbackAudioDataEventArgs eventArgs)
         {
             ArgumentNullException.ThrowIfNull(eventArgs);
             var shouldStop = false;
+            var writable = 0;
             try
             {
                 lock (_bufferSync)
                 {
                     var remaining = _rawByteLimit - _rawAudio.Length;
-                    var writable = (int)Math.Min(Math.Max(0, remaining), eventArgs.Buffer.Length);
+                    writable = (int)Math.Min(Math.Max(0, remaining), eventArgs.Buffer.Length);
                     writable -= writable % Session.SourceFormat.BlockAlign;
                     if (writable > 0)
                     {
@@ -479,6 +526,16 @@ public sealed class WasapiLoopbackAudioCaptureService : IAudioCaptureService, IA
                     }
 
                     shouldStop = writable < eventArgs.Buffer.Length;
+                }
+
+                if (writable > 0 &&
+                    !HasDetectedAudibleSignal &&
+                    _signalDetector.ContainsAudibleSignal(
+                        eventArgs.Buffer.AsSpan(0, writable),
+                        Session.SourceFormat) &&
+                    Interlocked.CompareExchange(ref _hasDetectedAudibleSignal, 1, 0) == 0)
+                {
+                    _onAudibleSignalDetected();
                 }
             }
             finally

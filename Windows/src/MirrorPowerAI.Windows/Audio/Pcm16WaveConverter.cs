@@ -93,6 +93,37 @@ public sealed class Pcm16WaveConverter
             rootMeanSquare >= _silenceRootMeanSquareThreshold);
     }
 
+    /// <summary>
+    /// Determines whether an aligned raw buffer exceeds the configured silence threshold without
+    /// allocating or retaining a normalized copy.
+    /// </summary>
+    /// <param name="rawAudio">Raw interleaved source bytes.</param>
+    /// <param name="sourceFormat">Description of the source samples.</param>
+    /// <returns><see langword="true"/> when the buffer contains an audible mono signal.</returns>
+    /// <exception cref="ArgumentException">The buffer is not aligned to complete frames.</exception>
+    public bool ContainsAudibleSignal(ReadOnlySpan<byte> rawAudio, AudioSampleFormat sourceFormat)
+    {
+        if (rawAudio.Length % sourceFormat.BlockAlign != 0)
+        {
+            throw new ArgumentException("The raw audio buffer is not aligned to complete frames.", nameof(rawAudio));
+        }
+
+        var frameCount = rawAudio.Length / sourceFormat.BlockAlign;
+        if (frameCount == 0)
+        {
+            return false;
+        }
+
+        double squareSum = 0;
+        for (var frameIndex = 0; frameIndex < frameCount; frameIndex++)
+        {
+            var sample = ReadMonoFrame(rawAudio, sourceFormat, frameIndex);
+            squareSum += sample * sample;
+        }
+
+        return Math.Sqrt(squareSum / frameCount) >= _silenceRootMeanSquareThreshold;
+    }
+
     private static double ResampleMono(
         ReadOnlySpan<byte> rawAudio,
         AudioSampleFormat format,
