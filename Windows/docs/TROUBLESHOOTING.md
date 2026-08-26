@@ -26,7 +26,7 @@ Ejecuta `Windows\verify-whisper-runtime.ps1`. Si falla, confirma que estás usan
 
 Otra aplicación puede haber registrado `Alt+Shift+L`. Cierra la aplicación en conflicto y reinicia MirrorPowerAI. El registro usa `MOD_NOREPEAT` para evitar repeticiones mientras se mantienen las teclas.
 
-Al pulsarlo correctamente debe aparecer un indicador protegido **Escuchando…**. Si no aparece, abre el menú de bandeja y usa **Iniciar escucha**: si funciona desde el menú, el conflicto es exclusivamente del hotkey. Si tampoco funciona desde el menú, revisa el mensaje visible de error y la fuente de audio seleccionada.
+No es necesario resolver el conflicto para probar la aplicación: abre Configuración y usa **Guardar y empezar a escuchar**; después pulsa **Detener y procesar** en el panel protegido. También puedes usar **Iniciar escucha** desde la bandeja. Si estas rutas funcionan, el conflicto es exclusivamente del hotkey.
 
 ## No se captura audio
 
@@ -36,6 +36,8 @@ Al pulsarlo correctamente debe aparecer un indicador protegido **Escuchando…**
 - En navegador selecciona el ejecutable correspondiente (`msedge`, `chrome`, `firefox`, etc.), no el título de la pestaña. Si la arquitectura multiproceso del navegador o de la aplicación no entrega señal, usa conscientemente **Todo el audio del sistema**.
 - El contenido protegido por DRM puede no estar disponible mediante WASAPI loopback.
 - MirrorPowerAI nunca amplía silenciosamente una captura por aplicación al audio global.
+
+El panel diferencia los fallos esperados sin mostrar identificadores del dispositivo: fuente no disponible, fuente cerrada/desconectada, cambio del dispositivo predeterminado, límite seguro de memoria o interrupción de WASAPI. Sigue la instrucción concreta mostrada; un fallo de una aplicación nunca se convierte automáticamente en captura global.
 
 ## La aplicación parece no abrirse
 

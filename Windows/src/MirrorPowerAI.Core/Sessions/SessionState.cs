@@ -63,6 +63,21 @@ public enum SessionErrorKind
     /// <summary>A typed Gemini operation failed.</summary>
     Gemini,
 
+    /// <summary>The selected audio source was unavailable when capture began.</summary>
+    AudioSourceUnavailable,
+
+    /// <summary>The selected output device or application ended during capture.</summary>
+    AudioSourceDisconnected,
+
+    /// <summary>The default Windows output device changed during capture.</summary>
+    AudioDeviceChanged,
+
+    /// <summary>The bounded capture buffer reached its safety limit.</summary>
+    AudioCaptureLimit,
+
+    /// <summary>The platform audio backend ended capture unexpectedly.</summary>
+    AudioBackend,
+
     /// <summary>An unexpected adapter or platform failure occurred.</summary>
     Unexpected,
 }

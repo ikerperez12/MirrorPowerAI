@@ -9,6 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Threading;
+using MirrorPowerAI.Core.Audio;
 using MirrorPowerAI.Core.Privacy;
 using MirrorPowerAI.Core.Security;
 using MirrorPowerAI.Windows.Audio;

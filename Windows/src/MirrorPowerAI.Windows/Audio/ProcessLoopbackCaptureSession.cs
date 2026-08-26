@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using MirrorPowerAI.Core.Audio;
 using MirrorPowerAI.Windows.Platform;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
@@ -47,7 +48,7 @@ internal sealed class ProcessAudioEndpointProvider : IAudioEndpointProvider
                 out var process))
         {
             throw new AudioCaptureException(
-                AudioCaptureFailure.DeviceUnavailable,
+                AudioCaptureFailure.SourceUnavailable,
                 "The selected audio application is not running.");
         }
 
@@ -95,7 +96,7 @@ internal sealed class ProcessLoopbackCaptureSessionFactory : ILoopbackCaptureSes
                 out var processId) || processId <= 0)
         {
             throw new AudioCaptureException(
-                AudioCaptureFailure.DeviceUnavailable,
+                AudioCaptureFailure.SourceUnavailable,
                 "The selected audio application process is invalid.");
         }
 

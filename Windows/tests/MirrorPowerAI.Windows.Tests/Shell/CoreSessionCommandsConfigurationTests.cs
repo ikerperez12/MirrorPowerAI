@@ -66,6 +66,21 @@ public sealed class CoreSessionCommandsConfigurationTests
         Assert.True(CoreSessionCommands.IsUsableGeminiApiKey("  test-api-key  "));
     }
 
+    [Theory]
+    [InlineData(AudioCaptureFailure.SourceUnavailable, "SessionAudioSourceUnavailable")]
+    [InlineData(AudioCaptureFailure.SourceDisconnected, "SessionAudioSourceDisconnected")]
+    [InlineData(AudioCaptureFailure.DefaultDeviceChanged, "SessionAudioDeviceChanged")]
+    [InlineData(AudioCaptureFailure.BufferLimitReached, "SessionAudioCaptureLimit")]
+    [InlineData(AudioCaptureFailure.BackendFailure, "SessionAudioBackendError")]
+    public void MapAudioCaptureFailureResourceKey_EachRecoverableFailure_IsActionable(
+        AudioCaptureFailure failure,
+        string expectedResourceKey)
+    {
+        Assert.Equal(
+            expectedResourceKey,
+            CoreSessionCommands.MapAudioCaptureFailureResourceKey(failure));
+    }
+
     [Fact]
     public async Task ToggleAsync_AudioActivityChangesSnapshotFromWaitingToDetected()
     {

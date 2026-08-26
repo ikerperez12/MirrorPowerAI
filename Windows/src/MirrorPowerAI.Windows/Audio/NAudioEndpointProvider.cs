@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using MirrorPowerAI.Core.Audio;
 using NAudio.CoreAudioApi;
 
 namespace MirrorPowerAI.Windows.Audio;
@@ -50,7 +51,7 @@ public sealed class NAudioEndpointProvider : IAudioEndpointProvider
             if (device.State != DeviceState.Active)
             {
                 throw new AudioCaptureException(
-                    AudioCaptureFailure.DeviceUnavailable,
+                    AudioCaptureFailure.SourceUnavailable,
                     "The selected audio output device is not active.");
             }
 
@@ -62,7 +63,7 @@ public sealed class NAudioEndpointProvider : IAudioEndpointProvider
         catch (COMException exception)
         {
             throw new AudioCaptureException(
-                AudioCaptureFailure.DeviceUnavailable,
+                AudioCaptureFailure.SourceUnavailable,
                 "No usable audio output device is available.",
                 exception);
         }

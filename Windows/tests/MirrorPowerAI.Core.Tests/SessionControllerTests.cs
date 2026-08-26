@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using MirrorPowerAI.Core.Audio;
 using MirrorPowerAI.Core.Configuration;
 using MirrorPowerAI.Core.Sessions;
 using MirrorPowerAI.Core.Transcription;
@@ -196,6 +197,35 @@ public sealed class SessionControllerTests
         Assert.Equal(SessionState.Error, controller.State);
         Assert.DoesNotContain(
             "sensitive device detail",
+            controller.LastFailure?.Message ?? string.Empty,
+            StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(AudioCaptureFailure.SourceUnavailable, SessionErrorKind.AudioSourceUnavailable)]
+    [InlineData(AudioCaptureFailure.SourceDisconnected, SessionErrorKind.AudioSourceDisconnected)]
+    [InlineData(AudioCaptureFailure.DefaultDeviceChanged, SessionErrorKind.AudioDeviceChanged)]
+    [InlineData(AudioCaptureFailure.BufferLimitReached, SessionErrorKind.AudioCaptureLimit)]
+    [InlineData(AudioCaptureFailure.BackendFailure, SessionErrorKind.AudioBackend)]
+    public async Task ToggleAsync_TypedCaptureFailure_PreservesSafeActionableCategory(
+        AudioCaptureFailure captureFailure,
+        SessionErrorKind expectedSessionError)
+    {
+        const string sensitiveDetail = "private endpoint identifier";
+        var audio = new FakeAudioCaptureService
+        {
+            StopHandler = _ => Task.FromException<CapturedAudio>(
+                new AudioCaptureException(captureFailure, sensitiveDetail)),
+        };
+        await using var controller = CreateController(audio);
+
+        await controller.ToggleAsync();
+        await controller.ToggleAsync();
+
+        Assert.Equal(SessionState.Error, controller.State);
+        Assert.Equal(expectedSessionError, controller.LastFailure?.Kind);
+        Assert.DoesNotContain(
+            sensitiveDetail,
             controller.LastFailure?.Message ?? string.Empty,
             StringComparison.Ordinal);
     }

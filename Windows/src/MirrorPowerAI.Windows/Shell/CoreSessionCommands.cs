@@ -112,7 +112,13 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
                 ShellActivityState.Error,
                 UserMessage: "SessionUnexpectedError"));
         }
-        catch (Exception exception) when (exception is AudioCaptureException or PlatformNotSupportedException)
+        catch (AudioCaptureException exception)
+        {
+            Publish(new SessionSnapshot(
+                ShellActivityState.Error,
+                UserMessage: MapAudioCaptureFailureResourceKey(exception.Failure)));
+        }
+        catch (PlatformNotSupportedException)
         {
             Publish(new SessionSnapshot(
                 ShellActivityState.Error,
@@ -278,7 +284,7 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
             if (string.IsNullOrWhiteSpace(settings.AudioProcessName))
             {
                 throw new AudioCaptureException(
-                    AudioCaptureFailure.DeviceUnavailable,
+                    AudioCaptureFailure.SourceUnavailable,
                     "No audio application is selected.");
             }
 
@@ -351,8 +357,22 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
         SessionErrorKind.EmptyAnswer => "SessionEmptyAnswer",
         SessionErrorKind.ConsentRequired => "SessionConsentRequired",
         SessionErrorKind.Gemini => "SessionGeminiError",
+        SessionErrorKind.AudioSourceUnavailable => "SessionAudioSourceUnavailable",
+        SessionErrorKind.AudioSourceDisconnected => "SessionAudioSourceDisconnected",
+        SessionErrorKind.AudioDeviceChanged => "SessionAudioDeviceChanged",
+        SessionErrorKind.AudioCaptureLimit => "SessionAudioCaptureLimit",
+        SessionErrorKind.AudioBackend => "SessionAudioBackendError",
         SessionErrorKind.Unexpected => "SessionUnexpectedError",
         _ => null,
+    };
+
+    internal static string MapAudioCaptureFailureResourceKey(AudioCaptureFailure failure) => failure switch
+    {
+        AudioCaptureFailure.SourceUnavailable => "SessionAudioSourceUnavailable",
+        AudioCaptureFailure.SourceDisconnected => "SessionAudioSourceDisconnected",
+        AudioCaptureFailure.DefaultDeviceChanged => "SessionAudioDeviceChanged",
+        AudioCaptureFailure.BufferLimitReached => "SessionAudioCaptureLimit",
+        _ => "SessionAudioBackendError",
     };
 
     private void Publish(SessionSnapshot snapshot)

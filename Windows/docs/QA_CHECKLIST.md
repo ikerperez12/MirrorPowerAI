@@ -47,6 +47,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 - [ ] Teams de escritorio queda documentado y probado en modo global; un resultado silencioso en aislamiento por aplicación no se presenta como compatible.
 - [ ] Cambio de dispositivo entre sesiones.
 - [ ] Desconexión durante captura produce error recuperable.
+- [ ] Cerrar la aplicación, desconectar la salida, cambiar el dispositivo predeterminado, alcanzar el límite seguro o provocar un fallo de backend muestra su categoría localizada y accionable; nunca aparece como un genérico **error inesperado** ni incluye el identificador nativo.
 - [ ] Audio vacío no se transcribe ni envía.
 - [ ] Captura continua de cinco minutos termina sin archivos residuales.
 

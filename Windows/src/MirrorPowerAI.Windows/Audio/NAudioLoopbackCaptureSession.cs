@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using MirrorPowerAI.Core.Audio;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 
@@ -51,7 +52,7 @@ public sealed class NAudioLoopbackCaptureSession : ILoopbackCaptureSession
         {
             _device.Dispose();
             throw new AudioCaptureException(
-                AudioCaptureFailure.DeviceUnavailable,
+                AudioCaptureFailure.SourceUnavailable,
                 "The selected audio output device is not active.");
         }
 

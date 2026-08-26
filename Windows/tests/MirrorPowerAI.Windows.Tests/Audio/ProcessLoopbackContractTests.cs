@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using MirrorPowerAI.Core.Audio;
 using MirrorPowerAI.Windows.Audio;
 
 namespace MirrorPowerAI.Windows.Tests.Audio;
@@ -48,7 +49,7 @@ public sealed class ProcessLoopbackContractTests
         var exception = Assert.Throws<AudioCaptureException>(
             () => provider.GetRenderEndpoint(deviceId: null));
 
-        Assert.Equal(AudioCaptureFailure.DeviceUnavailable, exception.Failure);
+        Assert.Equal(AudioCaptureFailure.SourceUnavailable, exception.Failure);
         Assert.Empty(provider.GetActiveRenderEndpoints());
     }
 
@@ -60,7 +61,7 @@ public sealed class ProcessLoopbackContractTests
 
         var exception = Assert.Throws<AudioCaptureException>(() => factory.Create(endpoint));
 
-        Assert.Equal(AudioCaptureFailure.DeviceUnavailable, exception.Failure);
+        Assert.Equal(AudioCaptureFailure.SourceUnavailable, exception.Failure);
     }
 
     [Fact]

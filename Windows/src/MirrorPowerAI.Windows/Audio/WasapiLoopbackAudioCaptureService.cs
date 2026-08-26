@@ -415,7 +415,7 @@ public sealed class WasapiLoopbackAudioCaptureService :
                 return;
             case CaptureStopReason.DeviceDisconnected:
                 throw new AudioCaptureException(
-                    AudioCaptureFailure.DeviceDisconnected,
+                    AudioCaptureFailure.SourceDisconnected,
                     "The audio output device was disconnected during capture.");
             case CaptureStopReason.DefaultDeviceChanged:
                 throw new AudioCaptureException(

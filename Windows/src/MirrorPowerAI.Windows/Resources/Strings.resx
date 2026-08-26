@@ -45,6 +45,10 @@
   <data name="SessionConsentRequired" xml:space="preserve"><value>Autoriza explícitamente el envío de audio a Gemini.</value></data>
   <data name="SessionGeminiError" xml:space="preserve"><value>Gemini no pudo completar la solicitud. Revisa la clave, la red y la cuota.</value></data>
   <data name="SessionAudioSourceUnavailable" xml:space="preserve"><value>La fuente de audio seleccionada no está disponible. Abre Configuración, actualiza las aplicaciones o usa todo el audio del sistema.</value></data>
+  <data name="SessionAudioSourceDisconnected" xml:space="preserve"><value>La fuente de audio se cerró o desconectó durante la escucha. Vuelve a abrirla, actualiza las aplicaciones o elige otro dispositivo.</value></data>
+  <data name="SessionAudioDeviceChanged" xml:space="preserve"><value>El dispositivo de salida predeterminado cambió durante la escucha. Inicia una sesión nueva para usar el dispositivo actual.</value></data>
+  <data name="SessionAudioCaptureLimit" xml:space="preserve"><value>La captura alcanzó el límite seguro de memoria. Usa una sesión más corta y vuelve a intentarlo.</value></data>
+  <data name="SessionAudioBackendError" xml:space="preserve"><value>Windows interrumpió la captura de audio. Cierra otras herramientas de audio, revisa la fuente y vuelve a intentarlo.</value></data>
   <data name="SessionUnexpectedError" xml:space="preserve"><value>No se pudo completar la sesión. Revisa el dispositivo y vuelve a intentarlo.</value></data>
   <data name="SettingsTitle" xml:space="preserve"><value>Configuración de MirrorPowerAI</value></data>
   <data name="SettingsIntro" xml:space="preserve"><value>Elige la fuente de audio, configura Gemini y guarda. Después pulsa Alt+Mayús+L para iniciar la escucha y vuelve a pulsarlo para procesar la pregunta.</value></data>

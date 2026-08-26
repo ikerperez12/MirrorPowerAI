@@ -45,6 +45,10 @@
   <data name="SessionConsentRequired" xml:space="preserve"><value>Explicitly authorize sending audio to Gemini.</value></data>
   <data name="SessionGeminiError" xml:space="preserve"><value>Gemini could not complete the request. Check the key, network, and quota.</value></data>
   <data name="SessionAudioSourceUnavailable" xml:space="preserve"><value>The selected audio source is unavailable. Open Settings, refresh applications, or use all system audio.</value></data>
+  <data name="SessionAudioSourceDisconnected" xml:space="preserve"><value>The audio source closed or disconnected while listening. Reopen it, refresh applications, or choose another device.</value></data>
+  <data name="SessionAudioDeviceChanged" xml:space="preserve"><value>The default output device changed while listening. Start a new session to use the current device.</value></data>
+  <data name="SessionAudioCaptureLimit" xml:space="preserve"><value>Capture reached the safe memory limit. Use a shorter session and try again.</value></data>
+  <data name="SessionAudioBackendError" xml:space="preserve"><value>Windows interrupted audio capture. Close other audio tools, check the source, and try again.</value></data>
   <data name="SessionUnexpectedError" xml:space="preserve"><value>The session could not be completed. Check the device and try again.</value></data>
   <data name="SettingsTitle" xml:space="preserve"><value>MirrorPowerAI settings</value></data>
   <data name="SettingsIntro" xml:space="preserve"><value>Choose an audio source, configure Gemini, and save. Then press Alt+Shift+L to start listening and press it again to process the question.</value></data>

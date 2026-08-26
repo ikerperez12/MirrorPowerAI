@@ -420,6 +420,9 @@ public sealed class SessionController : IAsyncDisposable
             GeminiApiException geminiException => new(
                 SessionErrorKind.Gemini,
                 GetGeminiFailureMessage(geminiException.Kind)),
+            AudioCaptureException audioException => new(
+                MapAudioFailure(audioException.Failure),
+                GetAudioFailureMessage(audioException.Failure)),
             SessionOperationException sessionException => new(
                 sessionException.Kind,
                 GetSessionFailureMessage(sessionException.Kind)),
@@ -450,6 +453,24 @@ public sealed class SessionController : IAsyncDisposable
         SessionErrorKind.EmptyTranscript => "El proveedor no pudo obtener una transcripción.",
         SessionErrorKind.EmptyAnswer => "El servicio no devolvió una respuesta.",
         _ => "No se pudo completar la sesión.",
+    };
+
+    private static SessionErrorKind MapAudioFailure(AudioCaptureFailure failure) => failure switch
+    {
+        AudioCaptureFailure.SourceUnavailable => SessionErrorKind.AudioSourceUnavailable,
+        AudioCaptureFailure.SourceDisconnected => SessionErrorKind.AudioSourceDisconnected,
+        AudioCaptureFailure.DefaultDeviceChanged => SessionErrorKind.AudioDeviceChanged,
+        AudioCaptureFailure.BufferLimitReached => SessionErrorKind.AudioCaptureLimit,
+        _ => SessionErrorKind.AudioBackend,
+    };
+
+    private static string GetAudioFailureMessage(AudioCaptureFailure failure) => failure switch
+    {
+        AudioCaptureFailure.SourceUnavailable => "La fuente de audio seleccionada no está disponible.",
+        AudioCaptureFailure.SourceDisconnected => "La fuente de audio terminó durante la captura.",
+        AudioCaptureFailure.DefaultDeviceChanged => "El dispositivo de salida predeterminado cambió durante la captura.",
+        AudioCaptureFailure.BufferLimitReached => "La captura alcanzó su límite seguro de memoria.",
+        _ => "Windows interrumpió la captura de audio inesperadamente.",
     };
 
     private void TransitionTo(SessionState nextState)

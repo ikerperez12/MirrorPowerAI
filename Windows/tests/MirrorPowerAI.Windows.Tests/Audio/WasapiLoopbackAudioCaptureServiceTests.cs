@@ -1,3 +1,4 @@
+using MirrorPowerAI.Core.Audio;
 using MirrorPowerAI.Windows.Audio;
 
 namespace MirrorPowerAI.Windows.Tests.Audio;
@@ -136,7 +137,7 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
         var exception = await Assert.ThrowsAsync<AudioCaptureException>(() => service.StopAsync());
 
         // Assert
-        Assert.Equal(AudioCaptureFailure.DeviceDisconnected, exception.Failure);
+        Assert.Equal(AudioCaptureFailure.SourceDisconnected, exception.Failure);
     }
 
     [Fact]
