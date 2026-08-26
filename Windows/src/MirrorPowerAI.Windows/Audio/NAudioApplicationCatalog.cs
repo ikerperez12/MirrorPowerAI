@@ -94,9 +94,9 @@ internal sealed record AudioApplicationProcess(int ProcessId, string ProcessName
 internal static class AudioApplicationProcessResolver
 {
     /// <summary>
-    /// Resolves an exact PID when it still matches, otherwise selects the visible or oldest process
-    /// with the requested executable name. For multi-process apps, this normally selects the root
-    /// whose process tree contains the audio renderer.
+    /// Resolves an exact persisted PID when it still matches. When deriving an application from an
+    /// audio-session child PID, selects the visible or oldest process with that executable name so
+    /// multi-process browser/Electron applications normally target their root process tree.
     /// </summary>
     /// <param name="processName">Persisted executable name, or null when deriving it from the PID.</param>
     /// <param name="preferredProcessId">Last selected or audio-session process identifier.</param>
@@ -108,6 +108,7 @@ internal static class AudioApplicationProcessResolver
         out AudioApplicationProcess process)
     {
         process = null!;
+        var preferExactProcess = !string.IsNullOrWhiteSpace(processName);
         var normalizedName = NormalizeProcessName(processName);
         if (preferredProcessId is > 0 &&
             TryReadProcess(preferredProcessId.Value, out var preferred) &&
@@ -140,11 +141,13 @@ internal static class AudioApplicationProcessResolver
                 .Where(static snapshot => snapshot is not null)
                 .Select(static snapshot => snapshot!)
                 .ToArray();
-            var selected = snapshots.FirstOrDefault(snapshot => snapshot.ProcessId == preferredProcessId)
-                ?? snapshots
-                    .OrderByDescending(static snapshot => snapshot.HasMainWindow)
-                    .ThenBy(static snapshot => snapshot.StartOrder)
-                    .FirstOrDefault();
+            var selected = preferExactProcess
+                ? snapshots.FirstOrDefault(snapshot => snapshot.ProcessId == preferredProcessId)
+                : null;
+            selected ??= snapshots
+                .OrderByDescending(static snapshot => snapshot.HasMainWindow)
+                .ThenBy(static snapshot => snapshot.StartOrder)
+                .FirstOrDefault();
             if (selected is null)
             {
                 return false;
