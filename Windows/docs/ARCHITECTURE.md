@@ -20,7 +20,9 @@ flowchart LR
     Provider --> Cloud["Gemini Audio con consentimiento"]
     Whisper --> Answer["Gemini texto"]
     Cloud --> Answer
+    Controller --> Status["Escuchando / Procesando / Error"]
     Answer --> Overlay["Overlay WPF protegido"]
+    Status --> Overlay
     Overlay --> Affinity["WDA_EXCLUDEFROMCAPTURE"]
 ```
 
@@ -51,7 +53,7 @@ Cualquier fallo esperado pasa por `Error` y vuelve a un estado recuperable. `Ses
 
 ## Fallo seguro del overlay
 
-El overlay usa una ventana superior opaca (`AllowsTransparency=false`). Sólo muestra pregunta o respuesta si `SetWindowDisplayAffinity` y `GetWindowDisplayAffinity` confirman `WDA_EXCLUDEFROMCAPTURE`. Si no puede confirmarse, la información sensible no se renderiza y la bandeja ofrece reintentar o cerrar.
+El overlay usa una ventana superior opaca (`AllowsTransparency=false`). Sólo muestra estado, pregunta o respuesta si `SetWindowDisplayAffinity` y `GetWindowDisplayAffinity` confirman `WDA_EXCLUDEFROMCAPTURE`. Durante captura y procesamiento usa un modo compacto, no activable y con región viva UI Automation, equivalente al panel de estado macOS sin robar el foco de la reunión. Si no puede confirmarse la protección, no se renderiza el panel y la bandeja conserva feedback genérico.
 
 ## Datos persistentes
 

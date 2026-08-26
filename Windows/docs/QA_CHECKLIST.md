@@ -9,6 +9,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 - [ ] Preflight de UI: ejecutar `./Windows/verify-ui.ps1` en una sesión local e interactiva. Comprueba el ciclo WPF real de configuración y overlay con texto fijo no sensible, carga valores predeterminados desde una ruta temporal aislada, valida los estados Local/Gemini, renderizado, UI Automation, foco lógico inicial de configuración, foco del resultado y limpieza; no usa configuración del usuario, DPAPI, audio real, red, modelos ni sesiones, no deja la ruta temporal creada y no sustituye comprobar físicamente el foco de teclado, accesibilidad o captura.
 - [ ] Abrir la aplicación normal y comprobar que Configuración aparece de forma visible, que cerrarla mantiene el icono de bandeja y que su menú se opera mediante teclado.
 - [ ] Pulsar físicamente `Alt+Shift+L` para iniciar/detener una sesión y comprobar que al salir no queda icono ni proceso residual.
+- [ ] Al iniciar captura aparece el indicador protegido **Escuchando…** sin activar su ventana ni quitar el foco de Teams/Discord/navegador; al detener cambia a **Procesando…** y un fallo muestra un mensaje genérico accionable.
 - [ ] Pulsar **Salir** inmediatamente después de **Guardar**: la aplicación espera el guardado; si supera 15 segundos permanece abierta, avisa sin datos sensibles y permite reintentar sin dejar configuración temporal ni cerrar dependencias en uso.
 - [ ] Mientras **Guardar** está activo, los campos y botones quedan deshabilitados; **Cancelar**, la **X** y una nueva petición de Configuración desde la bandeja no ocultan ni recargan valores parciales. Al terminar, los controles vuelven a estar disponibles y el estado se anuncia.
 - [ ] Durante una sesión, verificar que los cambios `Capturando`, `Procesando`, `Error` y regreso a `Preparado` ofrecen feedback de bandeja genérico y localizado, sin API key, contexto, audio, pregunta, respuesta ni detalle del proveedor; el arranque inicial en `Preparado` debe permanecer silencioso.
@@ -54,7 +55,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 - [ ] Gemini Audio exige consentimiento.
 - [ ] Tras reiniciar la aplicación, Gemini Audio sigue bloqueado hasta que se confirma y guarda de nuevo el consentimiento.
 - [ ] Retirar consentimiento impide nuevas subidas.
-- [ ] Sin API key.
+- [ ] Sin API key, el primer `Alt+Shift+L` falla antes de capturar y muestra una instrucción visible para guardarla.
 - [ ] Sin red.
 - [ ] Cuota agotada/HTTP 429.
 - [ ] No existe fallback silencioso a nube.
@@ -64,6 +65,7 @@ Esta lista no se considera superada por el simple hecho de que compile. Marca ca
 - [ ] Toda la configuración se opera con Tab/Shift+Tab/Enter/Espacio/Escape.
 - [ ] Foco visible y orden lógico.
 - [ ] Narrator anuncia nombres, roles, valores, errores y cambios de estado.
+- [ ] Narrator anuncia una sola vez los cambios **Escuchando**, **Procesando** y error; el indicador respeta la preferencia de Windows de desactivar animaciones y el texto sigue siendo suficiente sin movimiento.
 - [ ] Narrator y la configuración de notificaciones de Windows permiten detectar el feedback genérico de bandeja durante una transición de sesión, sin revelar contenido sensible.
 - [ ] Tema claro y oscuro.
 - [ ] Alto contraste.

@@ -26,6 +26,8 @@ Ejecuta `Windows\verify-whisper-runtime.ps1`. Si falla, confirma que estás usan
 
 Otra aplicación puede haber registrado `Alt+Shift+L`. Cierra la aplicación en conflicto y reinicia MirrorPowerAI. El registro usa `MOD_NOREPEAT` para evitar repeticiones mientras se mantienen las teclas.
 
+Al pulsarlo correctamente debe aparecer un indicador protegido **Escuchando…**. Si no aparece, abre el menú de bandeja y usa **Iniciar escucha**: si funciona desde el menú, el conflicto es exclusivamente del hotkey. Si tampoco funciona desde el menú, revisa el mensaje visible de error y la fuente de audio seleccionada.
+
 ## No se captura audio
 
 - Para Teams de escritorio usa **Todo el audio del sistema**; el aislamiento por aplicación puede devolver silencio por una limitación conocida de la API de Windows.
