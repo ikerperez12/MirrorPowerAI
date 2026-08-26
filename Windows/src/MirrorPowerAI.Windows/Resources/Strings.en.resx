@@ -76,6 +76,9 @@
   <data name="CloudConsentLabel" xml:space="preserve"><value>Gemini Audio consent</value></data>
   <data name="CloudConsentText" xml:space="preserve"><value>I agree to send the recording to Google Gemini only when I choose Gemini Audio. When the app starts, Gemini Audio stays blocked until I save this choice again. There will be no automatic switch from local Whisper.</value></data>
   <data name="SaveButton" xml:space="preserve"><value>Save</value></data>
+  <data name="SaveAndStartButton" xml:space="preserve"><value>Save and start listening</value></data>
+  <data name="StartListeningHelp" xml:space="preserve"><value>After saving, start with this button; then stop from the protected panel, Alt+Shift+L, or the tray icon menu.</value></data>
+  <data name="StopAndProcessButton" xml:space="preserve"><value>Stop and process</value></data>
   <data name="CancelButton" xml:space="preserve"><value>Cancel</value></data>
   <data name="SettingsSaved" xml:space="preserve"><value>Settings saved.</value></data>
   <data name="SettingsSaving" xml:space="preserve"><value>Saving protected settings…</value></data>

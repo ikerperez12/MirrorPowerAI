@@ -138,6 +138,7 @@ public partial class App : System.Windows.Application, IDisposable
             audioApplications);
         _settingsWindow.SettingsSaved += OnSettingsSaved;
         _overlayPresenter = new OverlayPresenter(new OverlayProtectionService());
+        _overlayPresenter.StopRequested += OnToggleRequested;
         _sessionCommands = CreateSessionCommands(
             settingsStore,
             secretStore,
@@ -432,13 +433,15 @@ public partial class App : System.Windows.Application, IDisposable
                     snapshot.AudioSignalDetected
                         ? "OverlayStatusAudioDetected"
                         : "OverlayStatusListening"],
-                isBusy: true);
+                isBusy: true,
+                showStopAction: true);
         }
         else if (snapshot.Activity == ShellActivityState.Processing)
         {
             ShowProtectedSessionStatus(
                 LocalizationService.Current["OverlayStatusProcessing"],
-                isBusy: true);
+                isBusy: true,
+                showStopAction: false);
         }
         else if (snapshot.Activity == ShellActivityState.Error)
         {
@@ -446,7 +449,7 @@ public partial class App : System.Windows.Application, IDisposable
             var errorMessage = string.IsNullOrWhiteSpace(snapshot.UserMessage)
                 ? LocalizationService.Current["UnexpectedError"]
                 : LocalizeSessionMessage(snapshot.UserMessage);
-            ShowProtectedSessionStatus(errorMessage, isBusy: false);
+            ShowProtectedSessionStatus(errorMessage, isBusy: false, showStopAction: false);
         }
         else if (!snapshot.HasResult)
         {
@@ -464,14 +467,14 @@ public partial class App : System.Windows.Application, IDisposable
         }
     }
 
-    private void ShowProtectedSessionStatus(string status, bool isBusy)
+    private void ShowProtectedSessionStatus(string status, bool isBusy, bool showStopAction)
     {
         if (_overlayPresenter is null)
         {
             return;
         }
 
-        var result = _overlayPresenter.TryShowStatus(status, isBusy);
+        var result = _overlayPresenter.TryShowStatus(status, isBusy, showStopAction);
         if (!result.WasShown)
         {
             _trayIcon?.ShowError(LocalizationService.Current["OverlayProtectionFailed"]);
@@ -580,6 +583,11 @@ public partial class App : System.Windows.Application, IDisposable
                 }
 
                 _trayIcon?.SetStateAndNotify(ShellActivityState.Idle, hasResponse: false);
+                if (eventArgs.StartAfterSave && _sessionCommands is not null)
+                {
+                    _settingsWindow?.Hide();
+                    await _sessionCommands.ToggleAsync(cancellationToken);
+                }
             });
         }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
@@ -689,6 +697,13 @@ public partial class App : System.Windows.Application, IDisposable
 
         BestEffortCleanup.Run(
             () => _lifetimeCancellation.Cancel(),
+            () =>
+            {
+                if (_overlayPresenter is not null)
+                {
+                    _overlayPresenter.StopRequested -= OnToggleRequested;
+                }
+            },
             () => _overlayPresenter?.Close(),
             () =>
             {

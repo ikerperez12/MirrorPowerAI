@@ -477,11 +477,13 @@ public partial class MainWindow : Window
     /// Successful saves raise <see cref="SettingsSaved"/>.
     /// </remarks>
     /// <returns>A task that completes after the save attempt has finished.</returns>
-    public async Task SaveAsync()
+    public Task SaveAsync() => SaveAsyncCore(startAfterSave: false);
+
+    private async Task<bool> SaveAsyncCore(bool startAfterSave)
     {
         if (IsSaving || _applicationExitRequested)
         {
-            return;
+            return false;
         }
 
         HideStatus();
@@ -495,7 +497,7 @@ public partial class MainWindow : Window
         {
             ShowStatus(_localization["AudioApplicationRequired"], isError: true);
             ApplicationBox.Focus();
-            return;
+            return false;
         }
 
         var hasCloudConsent = CloudConsentBox.IsChecked == true;
@@ -511,7 +513,7 @@ public partial class MainWindow : Window
         {
             ShowStatus(_localization["ConsentRequired"], isError: true);
             CloudConsentBox.Focus();
-            return;
+            return false;
         }
 
         SetSavingState(isSaving: true);
@@ -584,11 +586,13 @@ public partial class MainWindow : Window
                 settings.AudioProcessId);
             UpdateAudioSourceVisibility();
             ShowStatus(_localization["SettingsSaved"], isError: false);
-            SettingsSaved?.Invoke(this, new SettingsSavedEventArgs(settings));
+            SettingsSaved?.Invoke(this, new SettingsSavedEventArgs(settings, startAfterSave));
+            return true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or CryptographicException)
         {
             ShowStatus(_localization["SettingsSaveError"], isError: true);
+            return false;
         }
         finally
         {
@@ -603,6 +607,9 @@ public partial class MainWindow : Window
     }
 
     private async void OnSaveClick(object sender, RoutedEventArgs eventArgs) => await SaveAsync();
+
+    private async void OnSaveAndStartClick(object sender, RoutedEventArgs eventArgs) =>
+        _ = await SaveAsyncCore(startAfterSave: true);
 
     private void OnCancelClick(object sender, RoutedEventArgs eventArgs)
     {
@@ -624,6 +631,7 @@ public partial class MainWindow : Window
         ApplicationBox.IsEnabled = !isSaving;
         RefreshApplicationsButton.IsEnabled = !isSaving;
         CloudConsentBox.IsEnabled = !isSaving;
+        SaveAndStartButtonControl.IsEnabled = !isSaving;
         SaveButtonControl.IsEnabled = !isSaving;
         CancelButtonControl.IsEnabled = !isSaving;
     }
@@ -906,11 +914,16 @@ public sealed class SettingsSavedEventArgs : EventArgs
 {
     /// <summary>Initializes event data.</summary>
     /// <param name="settings">Normalized persisted settings.</param>
-    public SettingsSavedEventArgs(AppSettings settings)
+    /// <param name="startAfterSave">Whether the explicit UI action requested immediate capture.</param>
+    public SettingsSavedEventArgs(AppSettings settings, bool startAfterSave = false)
     {
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        StartAfterSave = startAfterSave;
     }
 
     /// <summary>Gets normalized persisted settings.</summary>
     public AppSettings Settings { get; }
+
+    /// <summary>Gets whether capture should start after the privacy reset consumes these settings.</summary>
+    public bool StartAfterSave { get; }
 }

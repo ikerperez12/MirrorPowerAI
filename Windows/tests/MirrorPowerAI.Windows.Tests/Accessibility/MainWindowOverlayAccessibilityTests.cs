@@ -41,6 +41,16 @@ public sealed class MainWindowOverlayAccessibilityTests
             Assert.Equal(Visibility.Visible, status.Visibility);
             Assert.Contains(LocalizationService.Current["ApiKeyRequired"], status.Text, StringComparison.Ordinal);
             Assert.Equal(status.Text, AutomationProperties.GetName(status));
+
+            var startButton = Assert.IsType<System.Windows.Controls.Button>(
+                window.FindName("SaveAndStartButtonControl"));
+            Assert.True(startButton.IsTabStop);
+            Assert.Equal(
+                LocalizationService.Current["SaveAndStartButton"],
+                AutomationProperties.GetName(startButton));
+            Assert.Equal(
+                LocalizationService.Current["StartListeningHelp"],
+                AutomationProperties.GetHelpText(startButton));
         });
     }
 
@@ -192,7 +202,9 @@ public sealed class MainWindowOverlayAccessibilityTests
 
             try
             {
-                window.SetProtectedStatus(statusMessage, isBusy: true);
+                var stopRequests = 0;
+                window.StopRequested += (_, _) => stopRequests++;
+                window.SetProtectedStatus(statusMessage, isBusy: true, showStopAction: true);
                 window.Show();
                 await announced.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -200,6 +212,8 @@ public sealed class MainWindowOverlayAccessibilityTests
                 var progress = Assert.IsType<System.Windows.Controls.ProgressBar>(
                     window.FindName("StatusProgressBar"));
                 var answer = GetTextBox(window, "AnswerTextBox");
+                var stopButton = Assert.IsType<System.Windows.Controls.Button>(
+                    window.FindName("StatusActionButton"));
                 Assert.Equal(Visibility.Visible, status.Visibility);
                 Assert.Equal(
                     SystemParameters.ClientAreaAnimation ? Visibility.Visible : Visibility.Collapsed,
@@ -207,10 +221,21 @@ public sealed class MainWindowOverlayAccessibilityTests
                 Assert.False(answer.IsVisible);
                 Assert.Equal(statusMessage, status.Text);
                 Assert.Equal(statusMessage, AutomationProperties.GetName(status));
+                Assert.Equal(Visibility.Visible, stopButton.Visibility);
+                Assert.True(stopButton.IsTabStop);
+                Assert.Equal(
+                    LocalizationService.Current["StopAndProcessButton"],
+                    AutomationProperties.GetName(stopButton));
+
+                stopButton.RaiseEvent(
+                    new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.Equal(1, stopRequests);
+                Assert.False(stopButton.IsEnabled);
 
                 window.Close();
                 Assert.Equal(string.Empty, status.Text);
                 Assert.Equal(string.Empty, answer.Text);
+                Assert.Equal(Visibility.Collapsed, stopButton.Visibility);
             }
             finally
             {

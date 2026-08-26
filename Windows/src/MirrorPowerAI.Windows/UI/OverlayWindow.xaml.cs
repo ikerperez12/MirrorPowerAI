@@ -68,6 +68,9 @@ public partial class OverlayWindow : Window
     /// </summary>
     internal event EventHandler? StatusAnnouncementRaised;
 
+    /// <summary>Raised when the user explicitly asks the protected capture panel to stop and process.</summary>
+    public event EventHandler? StopRequested;
+
     /// <summary>Inserts plain text after the owning presenter verifies capture exclusion.</summary>
     /// <param name="question">Transcribed question.</param>
     /// <param name="answer">Generated answer.</param>
@@ -88,7 +91,8 @@ public partial class OverlayWindow : Window
     /// <summary>Shows a generic capture or processing state after display-affinity verification.</summary>
     /// <param name="status">Localized status containing no user content.</param>
     /// <param name="isBusy">Whether to show indeterminate progress.</param>
-    public void SetProtectedStatus(string status, bool isBusy)
+    /// <param name="showStopAction">Whether the capture stop action should be available.</param>
+    public void SetProtectedStatus(string status, bool isBusy, bool showStopAction = false)
     {
         Dispatcher.VerifyAccess();
         ArgumentException.ThrowIfNullOrWhiteSpace(status);
@@ -101,6 +105,8 @@ public partial class OverlayWindow : Window
             : Visibility.Collapsed;
         StatusTextBlock.Text = status;
         AutomationProperties.SetName(StatusTextBlock, status);
+        StatusActionButton.Visibility = showStopAction ? Visibility.Visible : Visibility.Collapsed;
+        StatusActionButton.IsEnabled = showStopAction;
         _statusAnnouncementPending = true;
         ScheduleStatusAnnouncement();
     }
@@ -115,6 +121,8 @@ public partial class OverlayWindow : Window
         AnswerTextBox.Clear();
         StatusTextBlock.Text = string.Empty;
         StatusTextBlock.ClearValue(AutomationProperties.NameProperty);
+        StatusActionButton.Visibility = Visibility.Collapsed;
+        StatusActionButton.IsEnabled = false;
     }
 
     /// <summary>Centers and bounds the overlay inside the working area of the monitor under the pointer.</summary>
@@ -337,6 +345,12 @@ public partial class OverlayWindow : Window
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs eventArgs) => Close();
+
+    private void OnStatusActionClick(object sender, RoutedEventArgs eventArgs)
+    {
+        StatusActionButton.IsEnabled = false;
+        StopRequested?.Invoke(this, EventArgs.Empty);
+    }
 
     private void OnWindowKeyDown(object sender, System.Windows.Input.KeyEventArgs eventArgs)
     {

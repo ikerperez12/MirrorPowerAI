@@ -12,6 +12,37 @@ namespace MirrorPowerAI.Windows.Tests.Platform;
 public sealed class MainWindowSecretPersistenceTests
 {
     [Fact]
+    public async Task SaveAndStartButton_PersistsOnceAndRequestsCaptureAfterSave()
+    {
+        using var testDirectory = new TemporaryDirectory();
+        var settingsStore = new JsonSettingsStore(Path.Combine(testDirectory.Path, "settings.json"));
+        var secretStore = new RecordingSecretStore();
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var window = CreateWindow(settingsStore, secretStore);
+            await window.ReloadAsync();
+            GetPasswordBox(window, "ApiKeyBox").Password = "test-api-key";
+            var saved = new TaskCompletionSource<SettingsSavedEventArgs>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            window.SettingsSaved += (_, eventArgs) => saved.TrySetResult(eventArgs);
+
+            GetButton(window, "SaveAndStartButtonControl").RaiseEvent(
+                new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            var eventArgs = await saved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.True(eventArgs.StartAfterSave);
+            Assert.Equal(
+                "test-api-key",
+                secretStore.Mutations.Single(
+                    mutation => mutation.Name == MainWindow.GeminiApiKeySecretName).Value);
+            Assert.Equal(
+                TranscriptionProviders.LocalWhisper,
+                (await settingsStore.LoadAsync()).TranscriptionProvider);
+        });
+    }
+
+    [Fact]
     public async Task ReloadAsync_ReadFailuresWithEmptyFields_PreservesBothSecretsWhileSavingOtherSettings()
     {
         using var testDirectory = new TemporaryDirectory();
@@ -274,6 +305,7 @@ public sealed class MainWindowSecretPersistenceTests
                 Assert.False(GetPasswordBox(window, "ApiKeyBox").IsEnabled);
                 Assert.False(GetTextBox(window, "ContextBox").IsEnabled);
                 Assert.False(GetComboBox(window, "ProviderBox").IsEnabled);
+                Assert.False(GetButton(window, "SaveAndStartButtonControl").IsEnabled);
                 Assert.False(GetButton(window, "SaveButtonControl").IsEnabled);
                 Assert.False(GetButton(window, "CancelButtonControl").IsEnabled);
 
@@ -290,6 +322,7 @@ public sealed class MainWindowSecretPersistenceTests
                 Assert.False(window.IsSaving);
                 Assert.True(GetPasswordBox(window, "ApiKeyBox").IsEnabled);
                 Assert.True(GetComboBox(window, "ProviderBox").IsEnabled);
+                Assert.True(GetButton(window, "SaveAndStartButtonControl").IsEnabled);
                 Assert.True(GetButton(window, "SaveButtonControl").IsEnabled);
                 Assert.True(GetButton(window, "CancelButtonControl").IsEnabled);
             }

@@ -20,6 +20,9 @@ public sealed class OverlayPresenter
         _protectionService = protectionService ?? throw new ArgumentNullException(nameof(protectionService));
     }
 
+    /// <summary>Raised when the protected status panel requests capture finalization.</summary>
+    public event EventHandler? StopRequested;
+
     /// <summary>
     /// Shows plain text only after Windows confirms <c>WDA_EXCLUDEFROMCAPTURE</c>.
     /// </summary>
@@ -45,6 +48,7 @@ public sealed class OverlayPresenter
 
         candidate.SetProtectedContent(question, answer);
         candidate.PositionOnActiveMonitor();
+        candidate.StopRequested += OnStopRequested;
         candidate.Closed += OnWindowClosed;
         _window = candidate;
         candidate.Show();
@@ -58,15 +62,19 @@ public sealed class OverlayPresenter
     /// </summary>
     /// <param name="status">Localized status containing no user content or raw diagnostics.</param>
     /// <param name="isBusy">Whether indeterminate progress should be visible.</param>
+    /// <param name="showStopAction">Whether the protected capture-stop action should be visible.</param>
     /// <returns>A result safe to report without exposing the status text.</returns>
-    public OverlayShowResult TryShowStatus(string status, bool isBusy = true)
+    public OverlayShowResult TryShowStatus(
+        string status,
+        bool isBusy = true,
+        bool showStopAction = false)
     {
         Dispatcher.CurrentDispatcher.VerifyAccess();
         ArgumentException.ThrowIfNullOrWhiteSpace(status);
 
         if (_window is { IsVisible: true } existingWindow)
         {
-            existingWindow.SetProtectedStatus(status, isBusy);
+            existingWindow.SetProtectedStatus(status, isBusy, showStopAction);
             existingWindow.PositionOnActiveMonitor();
             return OverlayShowResult.Success;
         }
@@ -86,8 +94,9 @@ public sealed class OverlayPresenter
             return new OverlayShowResult(false, protection.Win32Error, protection.Message);
         }
 
-        candidate.SetProtectedStatus(status, isBusy);
+        candidate.SetProtectedStatus(status, isBusy, showStopAction);
         candidate.PositionOnActiveMonitor();
+        candidate.StopRequested += OnStopRequested;
         candidate.Closed += OnWindowClosed;
         _window = candidate;
         candidate.Show();
@@ -119,6 +128,7 @@ public sealed class OverlayPresenter
 
         var window = _window;
         _window = null;
+        window.StopRequested -= OnStopRequested;
         window.Closed -= OnWindowClosed;
         window.ClearSensitiveContent();
         window.Close();
@@ -128,11 +138,15 @@ public sealed class OverlayPresenter
     {
         if (sender is OverlayWindow window)
         {
+            window.StopRequested -= OnStopRequested;
             window.Closed -= OnWindowClosed;
         }
 
         _window = null;
     }
+
+    private void OnStopRequested(object? sender, EventArgs eventArgs) =>
+        StopRequested?.Invoke(this, EventArgs.Empty);
 }
 
 /// <summary>

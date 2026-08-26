@@ -160,12 +160,25 @@
                            Visibility="Collapsed"
                            Focusable="False"
                            automation:AutomationProperties.LiveSetting="Assertive" />
+
+                <TextBlock x:Name="QuickStartHelpText"
+                           Margin="0,4,0,0"
+                           TextWrapping="Wrap"
+                           Text="{loc:Loc StartListeningHelp}"
+                           automation:AutomationProperties.Name="{loc:Loc StartListeningHelp}" />
             </StackPanel>
         </ScrollViewer>
 
         <WrapPanel Grid.Row="2"
                    Margin="0,12,0,0"
                    HorizontalAlignment="Right">
+            <Button x:Name="SaveAndStartButtonControl"
+                    MinHeight="36"
+                    Padding="14,6"
+                    Click="OnSaveAndStartClick"
+                    Content="{loc:Loc SaveAndStartButton}"
+                    automation:AutomationProperties.Name="{loc:Loc SaveAndStartButton}"
+                    automation:AutomationProperties.HelpText="{loc:Loc StartListeningHelp}" />
             <Button x:Name="SaveButtonControl"
                     IsDefault="True"
                     Click="OnSaveClick"

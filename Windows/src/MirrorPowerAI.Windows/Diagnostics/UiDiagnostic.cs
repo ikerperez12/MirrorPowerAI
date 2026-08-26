@@ -9,6 +9,7 @@ using MirrorPowerAI.Core.Security;
 using MirrorPowerAI.Windows.Platform;
 using MirrorPowerAI.Windows.Resources;
 using MirrorPowerAI.Windows.UI;
+using WpfButton = System.Windows.Controls.Button;
 using WpfCheckBox = System.Windows.Controls.CheckBox;
 using WpfComboBox = System.Windows.Controls.ComboBox;
 using WpfPasswordBox = System.Windows.Controls.PasswordBox;
@@ -143,7 +144,9 @@ internal sealed class UiDiagnostic
             {
                 settingsWindow = null;
                 overlayPresenter = new OverlayPresenter(new OverlayProtectionService());
-                var statusResult = overlayPresenter.TryShowStatus(DiagnosticStatus);
+                var statusResult = overlayPresenter.TryShowStatus(
+                    DiagnosticStatus,
+                    showStopAction: true);
                 if (!statusResult.WasShown)
                 {
                     failure = UiDiagnosticFailure.OverlayProtectionFailed;
@@ -538,6 +541,7 @@ internal static class UiDiagnosticContract
             InspectControl(window, "CaptureSourceBox", typeof(WpfComboBox)),
             InspectControl(window, "ProviderBox", typeof(WpfComboBox)),
             InspectControl(window, "LanguageBox", typeof(WpfComboBox)),
+            InspectControl(window, "SaveAndStartButtonControl", typeof(WpfButton)),
             expectApplicationCaptureVisible
                 ? InspectControl(window, "ApplicationBox", typeof(WpfComboBox))
                 : InspectControl(window, "DeviceBox", typeof(WpfComboBox)),
@@ -599,7 +603,10 @@ internal static class UiDiagnosticContract
         }
 
         var statusControls = ValidateCriticalControls(
-            [InspectControl(window, "StatusTextBlock", typeof(WpfTextBlock))]);
+        [
+            InspectControl(window, "StatusTextBlock", typeof(WpfTextBlock)),
+            InspectControl(window, "StatusActionButton", typeof(WpfButton)),
+        ]);
         var progressControl = InspectControl(window, "StatusProgressBar", typeof(WpfProgressBar));
         var answerControl = InspectControl(window, "AnswerTextBox", typeof(WpfTextBox));
         return statusControls == UiDiagnosticFailure.None &&
