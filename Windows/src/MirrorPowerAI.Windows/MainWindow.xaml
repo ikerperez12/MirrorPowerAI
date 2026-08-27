@@ -10,27 +10,38 @@
         Height="720"
         MinWidth="520"
         MinHeight="520"
+        Background="{DynamicResource MirrorSurfaceBrush}"
         ShowInTaskbar="True"
         WindowStartupLocation="Manual"
         Closing="OnWindowClosing">
-    <Grid Margin="24">
+    <Grid Margin="24"
+          UseLayoutRounding="True"
+          SnapsToDevicePixels="True">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock FontSize="26"
-                       FontWeight="SemiBold"
-                       automation:AutomationProperties.HeadingLevel="Level1"
-                       Text="{loc:Loc SettingsTitle}" />
-            <TextBlock Margin="0,6,0,0"
-                       TextWrapping="Wrap"
-                       Text="{loc:Loc SettingsIntro}" />
-        </StackPanel>
+        <Border Grid.Row="0"
+                Margin="0,0,0,4"
+                Padding="0,0,0,16"
+                BorderBrush="{DynamicResource MirrorBorderBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel>
+                <TextBlock FontSize="26"
+                           FontWeight="SemiBold"
+                           automation:AutomationProperties.HeadingLevel="Level1"
+                           Text="{loc:Loc SettingsTitle}" />
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
+                           TextWrapping="Wrap"
+                           Text="{loc:Loc SettingsIntro}" />
+            </StackPanel>
+        </Border>
 
         <ScrollViewer Grid.Row="1"
+                      Padding="0,12,12,0"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Auto"
                       Focusable="False">
@@ -43,6 +54,13 @@
                              MaxLength="512"
                              automation:AutomationProperties.Name="{loc:Loc ApiKeyLabel}"
                              automation:AutomationProperties.HelpText="{loc:Loc ApiKeyHelp}" />
+                <Button x:Name="VerifyApiKeyButton"
+                        Margin="0,8,0,0"
+                        HorizontalAlignment="Left"
+                        Click="OnVerifyApiKeyClick"
+                        Content="{loc:Loc VerifyApiKeyButton}"
+                        automation:AutomationProperties.Name="{loc:Loc VerifyApiKeyButton}"
+                        automation:AutomationProperties.HelpText="{loc:Loc VerifyApiKeyHelp}" />
                 <TextBlock Margin="0,4,0,16"
                            TextWrapping="Wrap"
                            Text="{loc:Loc ApiKeyHelp}" />
@@ -169,12 +187,16 @@
             </StackPanel>
         </ScrollViewer>
 
-        <WrapPanel Grid.Row="2"
-                   Margin="0,12,0,0"
-                   HorizontalAlignment="Right">
+        <Border Grid.Row="2"
+                Margin="0,12,0,0"
+                Padding="0,12,0,0"
+                BorderBrush="{DynamicResource MirrorBorderBrush}"
+                BorderThickness="0,1,0,0">
+            <WrapPanel HorizontalAlignment="Right">
             <Button x:Name="SaveAndStartButtonControl"
                     MinHeight="36"
                     Padding="14,6"
+                    Style="{DynamicResource MirrorPrimaryButton}"
                     Click="OnSaveAndStartClick"
                     Content="{loc:Loc SaveAndStartButton}"
                     automation:AutomationProperties.Name="{loc:Loc SaveAndStartButton}"
@@ -187,6 +209,7 @@
                     IsCancel="True"
                     Click="OnCancelClick"
                     Content="{loc:Loc CancelButton}" />
-        </WrapPanel>
+            </WrapPanel>
+        </Border>
     </Grid>
 </Window>

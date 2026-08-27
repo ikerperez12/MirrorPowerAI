@@ -18,10 +18,10 @@ namespace MirrorPowerAI.Windows.UI;
 /// </summary>
 public partial class OverlayWindow : Window
 {
-    private const double ResultWidth = 720;
-    private const double ResultHeight = 480;
-    private const double ResultMinimumWidth = 420;
-    private const double ResultMinimumHeight = 280;
+    private const double ResultWidth = 600;
+    private const double ResultHeight = 360;
+    private const double ResultMinimumWidth = 400;
+    private const double ResultMinimumHeight = 240;
     private const double StatusWidth = 420;
     private const double StatusHeight = 220;
     private const double StatusMinimumWidth = 380;
@@ -32,6 +32,7 @@ public partial class OverlayWindow : Window
     private bool _contentAnnouncementScheduled;
     private bool _statusAnnouncementPending;
     private bool _statusAnnouncementScheduled;
+    private bool _focusAnswerOnAnnouncement = true;
     private int _displaySettingsSubscribed;
     private int _displaySettingsRepositionQueued;
 
@@ -68,16 +69,18 @@ public partial class OverlayWindow : Window
     /// </summary>
     internal event EventHandler? StatusAnnouncementRaised;
 
-    /// <summary>Raised when the user explicitly asks the protected capture panel to stop and process.</summary>
+    /// <summary>Raised when the user explicitly asks the protected capture panel to pause listening.</summary>
     public event EventHandler? StopRequested;
 
     /// <summary>Inserts plain text after the owning presenter verifies capture exclusion.</summary>
     /// <param name="question">Transcribed question.</param>
     /// <param name="answer">Generated answer.</param>
-    public void SetProtectedContent(string? question, string answer)
+    /// <param name="focusAnswer">Whether this explicit display may move keyboard focus to the answer.</param>
+    public void SetProtectedContent(string? question, string answer, bool focusAnswer = true)
     {
         Dispatcher.VerifyAccess();
         ArgumentException.ThrowIfNullOrWhiteSpace(answer);
+        _focusAnswerOnAnnouncement = focusAnswer;
         ConfigureResultLayout();
         _statusAnnouncementPending = false;
         StatusTextBlock.ClearValue(AutomationProperties.NameProperty);
@@ -91,7 +94,7 @@ public partial class OverlayWindow : Window
     /// <summary>Shows a generic capture or processing state after display-affinity verification.</summary>
     /// <param name="status">Localized status containing no user content.</param>
     /// <param name="isBusy">Whether to show indeterminate progress.</param>
-    /// <param name="showStopAction">Whether the capture stop action should be available.</param>
+    /// <param name="showStopAction">Whether the pause-listening action should be available.</param>
     public void SetProtectedStatus(string status, bool isBusy, bool showStopAction = false)
     {
         Dispatcher.VerifyAccess();
@@ -121,6 +124,7 @@ public partial class OverlayWindow : Window
         AnswerTextBox.Clear();
         StatusTextBlock.Text = string.Empty;
         StatusTextBlock.ClearValue(AutomationProperties.NameProperty);
+        _focusAnswerOnAnnouncement = false;
         StatusActionButton.Visibility = Visibility.Collapsed;
         StatusActionButton.IsEnabled = false;
     }
@@ -300,7 +304,13 @@ public partial class OverlayWindow : Window
 
         RaiseLiveRegionChanged(AnswerTextBox, OverlayContentRegion.Answer);
         _contentAnnouncementPending = false;
-        AnswerTextBox.Focus();
+        // Automatic answers must remain passive: moving focus here would interrupt a Teams,
+        // browser, or Discord meeting. An explicit tray request can opt into focus so the user
+        // can immediately read and copy the response with the keyboard.
+        if (_focusAnswerOnAnnouncement)
+        {
+            AnswerTextBox.Focus();
+        }
     }
 
     private void ScheduleStatusAnnouncement()

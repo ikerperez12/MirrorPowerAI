@@ -55,6 +55,45 @@ internal sealed class FakeAudioCaptureService : IAudioCaptureService
     }
 }
 
+internal sealed class FakeContinuousAudioCaptureService : IAudioCaptureService, IAudioSegmentSource
+{
+    public event EventHandler<AudioSegmentAvailableEventArgs>? SegmentAvailable;
+
+    public int StartCount { get; private set; }
+
+    public int StopCount { get; private set; }
+
+    public bool IsCapturing { get; private set; }
+
+    public Task StartAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        StartCount++;
+        IsCapturing = true;
+        return Task.CompletedTask;
+    }
+
+    public Task<CapturedAudio> StopAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        StopCount++;
+        IsCapturing = false;
+        return Task.FromResult(TestAudio.Create());
+    }
+
+    public void Publish(CapturedAudio audio, bool forcedBoundary = false)
+    {
+        ArgumentNullException.ThrowIfNull(audio);
+        if (!IsCapturing || SegmentAvailable is null)
+        {
+            audio.Dispose();
+            return;
+        }
+
+        SegmentAvailable(this, new AudioSegmentAvailableEventArgs(audio, forcedBoundary));
+    }
+}
+
 internal sealed class FakeTranscriptionService(TranscriptionProvider provider) : ITranscriptionService
 {
     public TranscriptionProvider Provider { get; } = provider;

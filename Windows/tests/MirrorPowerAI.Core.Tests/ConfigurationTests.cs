@@ -20,22 +20,22 @@ public sealed class ConfigurationTests
     }
 
     [Fact]
-    public void Defaults_Always_PreferLocalWhisperAndFiveMinuteLimit()
+    public void Defaults_Always_PreferLocalWhisperAndEightHourContinuousLimit()
     {
         var options = new MirrorPowerAIOptions();
 
         Assert.Equal(TranscriptionProvider.LocalWhisper, options.Provider);
         Assert.Equal("es", options.Language);
-        Assert.Equal(TimeSpan.FromSeconds(300), options.MaxCaptureDuration);
+        Assert.Equal(TimeSpan.FromHours(8), options.MaxCaptureDuration);
         Assert.Equal(GeminiClientOptions.DefaultModel, options.GeminiModel);
     }
 
     [Fact]
-    public void EnsureValid_OverFiveMinutes_ThrowsWithoutIncludingValues()
+    public void EnsureValid_OverEightHours_ThrowsWithoutIncludingValues()
     {
         var options = new MirrorPowerAIOptions
         {
-            MaxCaptureDuration = TimeSpan.FromSeconds(301),
+            MaxCaptureDuration = TimeSpan.FromHours(8) + TimeSpan.FromSeconds(1),
         };
 
         var exception = Assert.Throws<ConfigurationValidationException>(options.EnsureValid);

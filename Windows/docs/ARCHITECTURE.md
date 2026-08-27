@@ -35,9 +35,9 @@ La bandeja usa un icono propio generado como ICO multirresolución (16–256 px)
 
 ## Máquina de estados
 
-`Idle -> Capturing -> Transcribing -> RequestingAnswer -> ShowingResult -> Idle`
+`Idle -> Capturing -> Transcribing -> RequestingAnswer -> Capturing` para cada pregunta detectada; `Capturing -> Paused -> Capturing` controla la escucha continua. `ShowingResult` se conserva como compatibilidad del flujo manual anterior y `Error` siempre es recuperable.
 
-Cualquier fallo esperado pasa por `Error` y vuelve a un estado recuperable. `SessionController` es el único propietario de las transiciones y de la cancelación. Una segunda activación durante captura detiene; durante fases posteriores solicita cancelación, sin iniciar una sesión concurrente.
+Cualquier fallo esperado pasa por `Error` y vuelve a un estado recuperable. `SessionController` es el único propietario de las transiciones y de la cancelación. Una segunda activación durante captura pausa; durante transcripción o respuesta cancela esa operación y pausa sin iniciar una sesión concurrente. Cada segmento permanece acotado en memoria y el listener sigue abierto para la siguiente pregunta.
 
 El contrato `MirrorPowerAI.Core.Audio.AudioCaptureException` conserva categorías seguras desde WASAPI hasta `SessionController`. La capa WPF localiza cada categoría sin reutilizar mensajes nativos: fuente ausente, desconexión/cierre, cambio del dispositivo predeterminado, límite de memoria o fallo del backend. Los identificadores y excepciones internas nunca se copian al panel.
 

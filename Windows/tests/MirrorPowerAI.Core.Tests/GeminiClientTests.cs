@@ -35,12 +35,66 @@ public sealed class GeminiClientTests
             .GetString();
         Assert.Contains("Estás ayudando a alguien", systemPrompt, StringComparison.Ordinal);
         Assert.Contains(
-            "Contexto del sistema que se está enseñando:\ncontexto privado",
+            "<material_de_referencia>\ncontexto privado\n</material_de_referencia>",
             systemPrompt,
             StringComparison.Ordinal);
         Assert.Equal(
+            "low",
+            root.GetProperty("generationConfig")
+                .GetProperty("thinkingConfig")
+                .GetProperty("thinkingLevel")
+                .GetString());
+        Assert.Equal(
             "¿Qué hace?",
             root.GetProperty("contents")[0].GetProperty("parts")[0].GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public async Task VerifyApiKeyAsync_UsesAuthenticatedModelLookupWithoutUserPayload()
+    {
+        using var handler = RecordingHttpMessageHandler.Json("{}");
+        using var httpClient = new HttpClient(handler);
+        var client = CreateClient(httpClient);
+
+        await client.VerifyApiKeyAsync();
+
+        Assert.Equal(HttpMethod.Get, handler.Method);
+        Assert.Equal("test-api-key", handler.ApiKey);
+        Assert.Null(handler.Body);
+        Assert.Equal(
+            $"https://generativelanguage.googleapis.com/v1beta/models/{GeminiClientOptions.DefaultModel}",
+            handler.RequestUri?.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task VerifyApiKeyAsync_UnauthorizedKey_ReturnsTypedFailure()
+    {
+        using var handler = RecordingHttpMessageHandler.Json("{}", HttpStatusCode.Unauthorized);
+        using var httpClient = new HttpClient(handler);
+        var client = CreateClient(httpClient);
+
+        var exception = await Assert.ThrowsAsync<GeminiApiException>(() => client.VerifyApiKeyAsync());
+
+        Assert.Equal(GeminiErrorKind.Unauthorized, exception.Kind);
+        Assert.Equal(1, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task VerifyApiKeyAsync_Timeout_ReturnsTypedTimeout()
+    {
+        using var handler = new RecordingHttpMessageHandler(async (_, cancellationToken) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        using var httpClient = new HttpClient(handler);
+        var client = CreateClient(
+            httpClient,
+            new GeminiClientOptions { RequestTimeout = TimeSpan.FromMilliseconds(20) });
+
+        var exception = await Assert.ThrowsAsync<GeminiApiException>(() => client.VerifyApiKeyAsync());
+
+        Assert.Equal(GeminiErrorKind.Timeout, exception.Kind);
     }
 
     [Fact]
@@ -72,7 +126,13 @@ public sealed class GeminiClientTests
         Assert.Equal("audio/wav", parts[1].GetProperty("inline_data").GetProperty("mime_type").GetString());
         Assert.Equal("AQIDBA==", parts[1].GetProperty("inline_data").GetProperty("data").GetString());
         Assert.DoesNotContain("system_instruction", handler.Body, StringComparison.Ordinal);
-        Assert.DoesNotContain("Contexto del sistema", handler.Body, StringComparison.Ordinal);
+        Assert.Equal(
+            "minimal",
+            document.RootElement.GetProperty("generationConfig")
+                .GetProperty("thinkingConfig")
+                .GetProperty("thinkingLevel")
+                .GetString());
+        Assert.DoesNotContain("material_de_referencia", handler.Body, StringComparison.Ordinal);
     }
 
     [Fact]

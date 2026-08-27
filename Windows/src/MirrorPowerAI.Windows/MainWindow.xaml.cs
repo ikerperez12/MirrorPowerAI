@@ -478,9 +478,9 @@ public partial class MainWindow : Window
     /// Successful saves raise <see cref="SettingsSaved"/>.
     /// </remarks>
     /// <returns>A task that completes after the save attempt has finished.</returns>
-    public Task SaveAsync() => SaveAsyncCore(startAfterSave: false);
+    public Task SaveAsync() => SaveAsyncCore(startAfterSave: false, verifyApiKey: false);
 
-    private async Task<bool> SaveAsyncCore(bool startAfterSave)
+    private async Task<bool> SaveAsyncCore(bool startAfterSave, bool verifyApiKey)
     {
         if (IsSaving || _applicationExitRequested)
         {
@@ -587,7 +587,7 @@ public partial class MainWindow : Window
                 settings.AudioProcessId);
             UpdateAudioSourceVisibility();
             ShowStatus(_localization["SettingsSaved"], isError: false);
-            SettingsSaved?.Invoke(this, new SettingsSavedEventArgs(settings, startAfterSave));
+            SettingsSaved?.Invoke(this, new SettingsSavedEventArgs(settings, startAfterSave, verifyApiKey));
             return true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or CryptographicException)
@@ -610,7 +610,12 @@ public partial class MainWindow : Window
     private async void OnSaveClick(object sender, RoutedEventArgs eventArgs) => await SaveAsync();
 
     private async void OnSaveAndStartClick(object sender, RoutedEventArgs eventArgs) =>
-        _ = await SaveAsyncCore(startAfterSave: true);
+        // Starting from onboarding must validate the persisted key first. The application never
+        // opens a capture session that is guaranteed to fail at its first answer request.
+        _ = await SaveAsyncCore(startAfterSave: true, verifyApiKey: true);
+
+    private async void OnVerifyApiKeyClick(object sender, RoutedEventArgs eventArgs) =>
+        _ = await SaveAsyncCore(startAfterSave: false, verifyApiKey: true);
 
     private void OnCancelClick(object sender, RoutedEventArgs eventArgs)
     {
@@ -624,6 +629,7 @@ public partial class MainWindow : Window
     {
         IsSaving = isSaving;
         ApiKeyBox.IsEnabled = !isSaving;
+        VerifyApiKeyButton.IsEnabled = !isSaving;
         ContextBox.IsEnabled = !isSaving;
         ProviderBox.IsEnabled = !isSaving;
         LanguageBox.IsEnabled = !isSaving;
@@ -698,6 +704,9 @@ public partial class MainWindow : Window
         _statusAnnouncementPending = true;
         ScheduleStatusAnnouncement();
     }
+
+    /// <summary>Shows the result of the explicit Gemini API-key verification workflow.</summary>
+    internal void ShowApiKeyVerificationStatus(string message, bool isError) => ShowStatus(message, isError);
 
     private void OnContentRendered(object? sender, EventArgs eventArgs)
     {
@@ -916,10 +925,15 @@ public sealed class SettingsSavedEventArgs : EventArgs
     /// <summary>Initializes event data.</summary>
     /// <param name="settings">Normalized persisted settings.</param>
     /// <param name="startAfterSave">Whether the explicit UI action requested immediate capture.</param>
-    public SettingsSavedEventArgs(AppSettings settings, bool startAfterSave = false)
+    /// <param name="verifyApiKey">Whether the explicit UI action requested Gemini key verification.</param>
+    public SettingsSavedEventArgs(
+        AppSettings settings,
+        bool startAfterSave = false,
+        bool verifyApiKey = false)
     {
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
         StartAfterSave = startAfterSave;
+        VerifyApiKey = verifyApiKey;
     }
 
     /// <summary>Gets normalized persisted settings.</summary>
@@ -927,4 +941,7 @@ public sealed class SettingsSavedEventArgs : EventArgs
 
     /// <summary>Gets whether capture should start after the privacy reset consumes these settings.</summary>
     public bool StartAfterSave { get; }
+
+    /// <summary>Gets whether the saved key must be verified against Gemini before returning.</summary>
+    public bool VerifyApiKey { get; }
 }

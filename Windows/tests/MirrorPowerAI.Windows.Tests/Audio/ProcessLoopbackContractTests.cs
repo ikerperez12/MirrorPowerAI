@@ -8,6 +8,78 @@ namespace MirrorPowerAI.Windows.Tests.Audio;
 public sealed class ProcessLoopbackContractTests
 {
     [Fact]
+    public void ProcessResolver_ChildAudioSession_UsesSameExecutableRoot()
+    {
+        var processTree = new Dictionary<int, ProcessTreeEntry>
+        {
+            [100] = new ProcessTreeEntry(100, 1, "chrome"),
+            [200] = new ProcessTreeEntry(200, 100, "chrome"),
+            [300] = new ProcessTreeEntry(300, 200, "chrome"),
+        };
+
+        var root = AudioApplicationProcessResolver.ResolveSameExecutableRoot(
+            processId: 300,
+            processName: "chrome.exe",
+            processTree);
+
+        Assert.Equal(100, root);
+    }
+
+    [Fact]
+    public void ProcessResolver_DoesNotCrossExecutableBoundary()
+    {
+        var processTree = new Dictionary<int, ProcessTreeEntry>
+        {
+            [100] = new ProcessTreeEntry(100, 1, "generic-host"),
+            [200] = new ProcessTreeEntry(200, 100, "msedgewebview2"),
+            [300] = new ProcessTreeEntry(300, 200, "msedgewebview2"),
+        };
+
+        var root = AudioApplicationProcessResolver.ResolveSameExecutableRoot(
+            processId: 300,
+            processName: "msedgewebview2",
+            processTree);
+
+        Assert.Equal(200, root);
+    }
+
+    [Fact]
+    public void ProcessResolver_NewTeamsWebViewChild_UsesTeamsRootOnly()
+    {
+        var processTree = new Dictionary<int, ProcessTreeEntry>
+        {
+            [100] = new ProcessTreeEntry(100, 1, "explorer"),
+            [200] = new ProcessTreeEntry(200, 100, "ms-teams"),
+            [300] = new ProcessTreeEntry(300, 200, "msedgewebview2"),
+            [400] = new ProcessTreeEntry(400, 300, "msedgewebview2"),
+        };
+
+        var root = AudioApplicationProcessResolver.ResolveSameExecutableRoot(
+            processId: 400,
+            processName: "msedgewebview2.exe",
+            processTree);
+
+        Assert.Equal(200, root);
+    }
+
+    [Fact]
+    public void ProcessResolver_StopsOnCycles()
+    {
+        var processTree = new Dictionary<int, ProcessTreeEntry>
+        {
+            [100] = new ProcessTreeEntry(100, 200, "discord"),
+            [200] = new ProcessTreeEntry(200, 100, "discord"),
+        };
+
+        var root = AudioApplicationProcessResolver.ResolveSameExecutableRoot(
+            processId: 100,
+            processName: "discord",
+            processTree);
+
+        Assert.Equal(100, root);
+    }
+
+    [Fact]
     public void CreateActivationParameters_UsesDocumentedTwelveByteProcessTreeLayout()
     {
         var parameters = ProcessLoopbackNative.CreateActivationParameters(1234);

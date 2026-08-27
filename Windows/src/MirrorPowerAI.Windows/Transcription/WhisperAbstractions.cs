@@ -83,3 +83,27 @@ public interface IWhisperInferenceEngine
         int threadCount,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Optional capability implemented by inference engines that can load the native Whisper model
+/// before the first audio segment arrives.
+/// </summary>
+/// <remarks>
+/// A preparation call is deliberately separate from <see cref="IWhisperInferenceEngine"/> so
+/// deterministic test doubles and alternative engines do not have to pay an artificial warm-up
+/// contract. Production Whisper.net uses this capability to keep the factory and native model
+/// resident for the lifetime of the process.
+/// </remarks>
+public interface IWhisperInferencePrewarmer
+{
+    /// <summary>
+    /// Loads the verified model/runtime and returns when the first inference can start.
+    /// </summary>
+    /// <param name="modelPath">Path to the verified model.</param>
+    /// <param name="threadCount">Maximum native inference threads.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task PrepareAsync(
+        string modelPath,
+        int threadCount,
+        CancellationToken cancellationToken = default);
+}

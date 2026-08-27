@@ -11,10 +11,15 @@ public interface ISessionCommands
     /// <summary>Gets the latest shell-safe snapshot.</summary>
     SessionSnapshot Snapshot { get; }
 
-    /// <summary>Starts capture from idle or stops the active capture session.</summary>
+    /// <summary>Starts listening from idle or pauses the active continuous listener.</summary>
     /// <param name="cancellationToken">Cancels the requested transition.</param>
     /// <returns>A task that completes after the Core transition.</returns>
     Task ToggleAsync(CancellationToken cancellationToken);
+
+    /// <summary>Verifies the persisted Gemini key against the configured model endpoint.</summary>
+    /// <param name="cancellationToken">Cancels the verification request.</param>
+    /// <returns>A task that completes only when the key is accepted by Gemini.</returns>
+    Task VerifyApiKeyAsync(CancellationToken cancellationToken);
 
     /// <summary>Cancels capture or processing without starting another session.</summary>
     /// <param name="cancellationToken">Cancels the wait to issue cancellation.</param>
@@ -32,6 +37,9 @@ public enum ShellActivityState
 {
     /// <summary>No session is running.</summary>
     Idle,
+
+    /// <summary>Listening is paused and can be resumed with the same command.</summary>
+    Paused,
 
     /// <summary>Output audio is being captured.</summary>
     Capturing,
@@ -101,6 +109,15 @@ public sealed class UnavailableSessionCommands : ISessionCommands
     {
         cancellationToken.ThrowIfCancellationRequested();
         Snapshot = new SessionSnapshot(ShellActivityState.Idle);
+        StateChanged?.Invoke(this, new SessionStateChangedEventArgs(Snapshot));
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task VerifyApiKeyAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Snapshot = new SessionSnapshot(ShellActivityState.Error, UserMessage: "SessionUnavailable");
         StateChanged?.Invoke(this, new SessionStateChangedEventArgs(Snapshot));
         return Task.CompletedTask;
     }

@@ -8,6 +8,9 @@ public enum SessionState
     /// <summary>No capture or processing is active.</summary>
     Idle,
 
+    /// <summary>Capture is paused and can be resumed without changing settings.</summary>
+    Paused,
+
     /// <summary>System output is being captured.</summary>
     Capturing,
 

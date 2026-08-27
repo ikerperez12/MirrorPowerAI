@@ -3,29 +3,141 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
-        <Style TargetType="{x:Type Window}">
-            <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" />
-            <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" />
-            <Setter Property="FontFamily" Value="Segoe UI" />
-            <Setter Property="FontSize" Value="14" />
-        </Style>
-        <Style TargetType="{x:Type Button}">
-            <Setter Property="MinHeight" Value="32" />
-            <Setter Property="MinWidth" Value="88" />
-            <Setter Property="Padding" Value="12,5" />
-            <Setter Property="Margin" Value="4" />
-        </Style>
-        <Style TargetType="{x:Type TextBox}">
-            <Setter Property="MinHeight" Value="32" />
-            <Setter Property="Padding" Value="6,4" />
-        </Style>
-        <Style TargetType="{x:Type PasswordBox}">
-            <Setter Property="MinHeight" Value="32" />
-            <Setter Property="Padding" Value="6,4" />
-        </Style>
-        <Style TargetType="{x:Type ComboBox}">
-            <Setter Property="MinHeight" Value="32" />
-            <Setter Property="Padding" Value="6,3" />
-        </Style>
+        <ResourceDictionary>
+            <!--
+                Keep the palette on the Windows system brushes.  Besides following the
+                current Windows theme, DynamicResource is important for high contrast
+                users who can switch the theme while the app is open.
+            -->
+            <SolidColorBrush x:Key="MirrorSurfaceBrush"
+                             Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+            <SolidColorBrush x:Key="MirrorPanelBrush"
+                             Color="{DynamicResource {x:Static SystemColors.ControlColorKey}}" />
+            <SolidColorBrush x:Key="MirrorBorderBrush"
+                             Color="{DynamicResource {x:Static SystemColors.ActiveBorderColorKey}}" />
+            <CornerRadius x:Key="MirrorControlCornerRadius">7</CornerRadius>
+            <CornerRadius x:Key="MirrorCardCornerRadius">12</CornerRadius>
+
+            <Style TargetType="{x:Type Window}">
+                <Setter Property="Background" Value="{DynamicResource MirrorSurfaceBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" />
+                <Setter Property="FontFamily" Value="Segoe UI" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="UseLayoutRounding" Value="True" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+            </Style>
+
+            <Style TargetType="{x:Type Label}">
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+
+            <Style TargetType="{x:Type GroupBox}">
+                <Setter Property="BorderBrush" Value="{DynamicResource MirrorBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+
+            <Style TargetType="{x:Type Button}">
+                <Setter Property="MinHeight" Value="34" />
+                <Setter Property="MinWidth" Value="88" />
+                <Setter Property="Padding" Value="14,6" />
+                <Setter Property="Margin" Value="4" />
+                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource MirrorBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Button}">
+                            <Border x:Name="ButtonChrome"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="{StaticResource MirrorControlCornerRadius}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                  Content="{TemplateBinding Content}"
+                                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                  ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                                  RecognizesAccessKey="True"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}"
+                                                  TextElement.FontWeight="{TemplateBinding FontWeight}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ButtonChrome"
+                                            Property="Background"
+                                            Value="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="ButtonChrome"
+                                            Property="Background"
+                                            Value="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="ButtonChrome"
+                                            Property="BorderBrush"
+                                            Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" />
+                                    <Setter TargetName="ButtonChrome" Property="BorderThickness" Value="2" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="ButtonChrome"
+                                            Property="Background"
+                                            Value="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" />
+                                    <Setter TargetName="ButtonChrome"
+                                            Property="BorderBrush"
+                                            Value="{DynamicResource {x:Static SystemColors.InactiveBorderBrushKey}}" />
+                                    <Setter Property="Foreground"
+                                            Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="MirrorPrimaryButton"
+                   TargetType="{x:Type Button}"
+                   BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" />
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.HighlightTextBrushKey}}" />
+            </Style>
+
+            <Style TargetType="{x:Type TextBox}">
+                <Setter Property="MinHeight" Value="34" />
+                <Setter Property="Padding" Value="9,7" />
+                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" />
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource MirrorBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CaretBrush" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" />
+            </Style>
+
+            <Style TargetType="{x:Type PasswordBox}">
+                <Setter Property="MinHeight" Value="34" />
+                <Setter Property="Padding" Value="9,7" />
+                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" />
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource MirrorBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CaretBrush" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" />
+            </Style>
+
+            <Style TargetType="{x:Type ComboBox}">
+                <Setter Property="MinHeight" Value="34" />
+                <Setter Property="Padding" Value="9,5" />
+                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" />
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource MirrorBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Style>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -76,6 +76,63 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
     }
 
     [Fact]
+    public async Task SegmentAvailable_EmitsAfterNaturalSilenceWithoutStoppingCapture()
+    {
+        var clock = new ManualTimeProvider();
+        var timer = new GateCaptureTimer(clock);
+        var session = new FakeLoopbackCaptureSession(TestFormat, AudiblePcm16(1_600));
+        await using var service = CreateService(
+            session,
+            timer: timer,
+            maximumDuration: TimeSpan.FromSeconds(10),
+            timeProvider: clock);
+        var ready = new TaskCompletionSource<(TimeSpan Duration, bool Forced)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        service.SegmentAvailable += (_, args) =>
+        {
+            ready.TrySetResult((args.Audio.Duration, args.ForcedBoundary));
+            args.Audio.Dispose();
+        };
+
+        await service.StartAsync();
+        timer.AdvanceAndRelease(TimeSpan.FromSeconds(1));
+        var segment = await ready.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.False(segment.Forced);
+        Assert.True(segment.Duration > TimeSpan.Zero);
+        Assert.True(service.IsCapturing);
+        _ = await service.StopAsync();
+    }
+
+    [Fact]
+    public async Task SegmentAvailable_MarksDurationCutSoTheCoreCanJoinTheNextTurn()
+    {
+        var clock = new ManualTimeProvider();
+        var timer = new GateCaptureTimer(clock);
+        var session = new FakeLoopbackCaptureSession(TestFormat, AudiblePcm16(1_600));
+        await using var service = CreateService(
+            session,
+            timer: timer,
+            maximumDuration: TimeSpan.FromSeconds(10),
+            timeProvider: clock);
+        var ready = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var forcedBoundary = false;
+        service.SegmentAvailable += (_, args) =>
+        {
+            forcedBoundary = args.ForcedBoundary;
+            ready.TrySetResult(true);
+            args.Audio.Dispose();
+        };
+
+        await service.StartAsync();
+        timer.AdvanceAndRelease(TimeSpan.FromSeconds(6));
+        await ready.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.True(forcedBoundary);
+        _ = await service.StopAsync();
+    }
+
+    [Fact]
     public async Task StopAsync_MaximumDurationReached_ReturnsBoundedCapture()
     {
         // Arrange
@@ -221,7 +278,7 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
     }
 
     [Fact]
-    public void Constructor_DurationOverFiveMinutes_RejectsConfiguration()
+    public void Constructor_DurationOverEightHours_RejectsConfiguration()
     {
         // Arrange
         var session = new FakeLoopbackCaptureSession(TestFormat, Array.Empty<byte>());
@@ -229,7 +286,7 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
         // Act and assert
         _ = Assert.Throws<ArgumentOutOfRangeException>(() => CreateService(
             session,
-            maximumDuration: TimeSpan.FromMinutes(5) + TimeSpan.FromMilliseconds(1)));
+            maximumDuration: TimeSpan.FromHours(8) + TimeSpan.FromMilliseconds(1)));
     }
 
     private static WasapiLoopbackAudioCaptureService CreateService(
@@ -363,6 +420,40 @@ public sealed class WasapiLoopbackAudioCaptureServiceTests
             timeProvider.Advance(delay);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class GateCaptureTimer(ManualTimeProvider timeProvider) : ICaptureTimer
+    {
+        private readonly object _sync = new();
+        private TaskCompletionSource<bool> _release = NewRelease();
+
+        public Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            TaskCompletionSource<bool> release;
+            lock (_sync)
+            {
+                release = _release;
+            }
+
+            return release.Task.WaitAsync(cancellationToken);
+        }
+
+        public void AdvanceAndRelease(TimeSpan duration)
+        {
+            timeProvider.Advance(duration);
+            TaskCompletionSource<bool> release;
+            lock (_sync)
+            {
+                release = _release;
+                _release = NewRelease();
+            }
+
+            release.TrySetResult(true);
+        }
+
+        private static TaskCompletionSource<bool> NewRelease() =>
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private sealed class NeverCompletingCaptureTimer : ICaptureTimer

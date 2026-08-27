@@ -16,17 +16,20 @@
   <data name="AppName" xml:space="preserve"><value>MirrorPowerAI</value></data>
   <data name="AlreadyRunningTitle" xml:space="preserve"><value>MirrorPowerAI is already open</value></data>
   <data name="AlreadyRunningMessage" xml:space="preserve"><value>Another MirrorPowerAI instance is already running for this user.</value></data>
-  <data name="TrayToggleStart" xml:space="preserve"><value>Start capture</value></data>
-  <data name="TrayToggleStop" xml:space="preserve"><value>Stop capture</value></data>
+  <data name="TrayToggleStart" xml:space="preserve"><value>Start listening</value></data>
+  <data name="TrayToggleStop" xml:space="preserve"><value>Pause listening</value></data>
+  <data name="TrayToggleResume" xml:space="preserve"><value>Resume listening</value></data>
   <data name="TrayToggleCancel" xml:space="preserve"><value>Cancel processing</value></data>
   <data name="TrayShowResponse" xml:space="preserve"><value>Show response</value></data>
   <data name="TraySettings" xml:space="preserve"><value>Settings</value></data>
   <data name="TrayExit" xml:space="preserve"><value>Exit</value></data>
   <data name="TrayStatusIdle" xml:space="preserve"><value>Status: ready</value></data>
-  <data name="TrayStatusCapturing" xml:space="preserve"><value>Status: capturing audio</value></data>
+  <data name="TrayStatusCapturing" xml:space="preserve"><value>Status: continuous listening</value></data>
+  <data name="TrayStatusPaused" xml:space="preserve"><value>Status: listening paused</value></data>
   <data name="TrayStatusBusy" xml:space="preserve"><value>Status: processing</value></data>
   <data name="TrayStatusError" xml:space="preserve"><value>Status: error</value></data>
-  <data name="TrayAnnouncementCapturing" xml:space="preserve"><value>MirrorPowerAI is capturing audio.</value></data>
+  <data name="TrayAnnouncementCapturing" xml:space="preserve"><value>MirrorPowerAI started continuous listening.</value></data>
+  <data name="TrayAnnouncementPaused" xml:space="preserve"><value>MirrorPowerAI paused listening.</value></data>
   <data name="TrayAnnouncementProcessing" xml:space="preserve"><value>MirrorPowerAI is processing the request.</value></data>
   <data name="TrayAnnouncementIdle" xml:space="preserve"><value>MirrorPowerAI is ready.</value></data>
   <data name="TrayAnnouncementError" xml:space="preserve"><value>MirrorPowerAI encountered an error. Check the tray menu.</value></data>
@@ -44,6 +47,8 @@
   <data name="SessionEmptyAnswer" xml:space="preserve"><value>Gemini returned no usable answer.</value></data>
   <data name="SessionConsentRequired" xml:space="preserve"><value>Explicitly authorize sending audio to Gemini.</value></data>
   <data name="SessionGeminiError" xml:space="preserve"><value>Gemini could not complete the request. Check the key, network, and quota.</value></data>
+  <data name="SessionPreparing" xml:space="preserve"><value>Verifying Gemini and preparing the listener…</value></data>
+  <data name="SessionWhisperModelError" xml:space="preserve"><value>The local Whisper model could not be prepared. Check the connection for the first download and try again.</value></data>
   <data name="SessionAudioSourceUnavailable" xml:space="preserve"><value>The selected audio source is unavailable. Open Settings, refresh applications, or use all system audio.</value></data>
   <data name="SessionAudioSourceDisconnected" xml:space="preserve"><value>The audio source closed or disconnected while listening. Reopen it, refresh applications, or choose another device.</value></data>
   <data name="SessionAudioDeviceChanged" xml:space="preserve"><value>The default output device changed while listening. Start a new session to use the current device.</value></data>
@@ -51,8 +56,16 @@
   <data name="SessionAudioBackendError" xml:space="preserve"><value>Windows interrupted audio capture. Close other audio tools, check the source, and try again.</value></data>
   <data name="SessionUnexpectedError" xml:space="preserve"><value>The session could not be completed. Check the device and try again.</value></data>
   <data name="SettingsTitle" xml:space="preserve"><value>MirrorPowerAI settings</value></data>
-  <data name="SettingsIntro" xml:space="preserve"><value>Choose an audio source, configure Gemini, and save. Then press Alt+Shift+L to start listening and press it again to process the question.</value></data>
+  <data name="SettingsIntro" xml:space="preserve"><value>Choose an audio source, configure Gemini, and save. Alt+Shift+L starts or pauses continuous listening; answers appear automatically when a question is detected.</value></data>
   <data name="ApiKeyLabel" xml:space="preserve"><value>Gemini API key</value></data>
+  <data name="VerifyApiKeyButton" xml:space="preserve"><value>Verify API key</value></data>
+  <data name="VerifyApiKeyHelp" xml:space="preserve"><value>Check now that this key can use the configured model before listening starts.</value></data>
+  <data name="ApiKeyVerificationInProgress" xml:space="preserve"><value>Checking the API key with Gemini…</value></data>
+  <data name="ApiKeyVerificationSuccess" xml:space="preserve"><value>The API key is valid and the model is available.</value></data>
+  <data name="ApiKeyVerificationFailed" xml:space="preserve"><value>The key could not be verified. Check the key, network, model, and quota.</value></data>
+  <data name="ApiKeyVerificationUnauthorized" xml:space="preserve"><value>Gemini rejected the API key. Check that it is correct and allowed to use the model.</value></data>
+  <data name="ApiKeyVerificationRateLimited" xml:space="preserve"><value>Gemini temporarily rate-limited verification. Wait a moment and try again.</value></data>
+  <data name="ApiKeyVerificationNetwork" xml:space="preserve"><value>Gemini could not be reached. Check the connection and configured model.</value></data>
   <data name="ApiKeyHelp" xml:space="preserve"><value>Required to generate the final answer, including with local Whisper. Encrypted with DPAPI for this user and never written as plaintext.</value></data>
   <data name="ContextLabel" xml:space="preserve"><value>Project context</value></data>
   <data name="ContextHelp" xml:space="preserve"><value>Maximum 16,000 characters. Sent only with the answer request, not during Gemini Audio transcription.</value></data>
@@ -81,8 +94,10 @@
   <data name="CloudConsentText" xml:space="preserve"><value>I agree to send the recording to Google Gemini only when I choose Gemini Audio. When the app starts, Gemini Audio stays blocked until I save this choice again. There will be no automatic switch from local Whisper.</value></data>
   <data name="SaveButton" xml:space="preserve"><value>Save</value></data>
   <data name="SaveAndStartButton" xml:space="preserve"><value>Save and start listening</value></data>
-  <data name="StartListeningHelp" xml:space="preserve"><value>After saving, start with this button; then stop from the protected panel, Alt+Shift+L, or the tray icon menu.</value></data>
-  <data name="StopAndProcessButton" xml:space="preserve"><value>Stop and process</value></data>
+  <data name="StartListeningHelp" xml:space="preserve"><value>After saving, start continuous listening. Questions are processed automatically in short segments; Alt+Shift+L or the tray menu pauses and resumes.</value></data>
+  <data name="PauseListeningButton" xml:space="preserve"><value>Pause listening</value></data>
+  <data name="PauseListeningHelp" xml:space="preserve"><value>Pause continuous listening and cancel any answer still being processed.</value></data>
+  <data name="StopAndProcessButton" xml:space="preserve"><value>Pause listening</value></data>
   <data name="CancelButton" xml:space="preserve"><value>Cancel</value></data>
   <data name="SettingsSaved" xml:space="preserve"><value>Settings saved.</value></data>
   <data name="SettingsSaving" xml:space="preserve"><value>Saving protected settings…</value></data>
@@ -96,9 +111,10 @@
   <data name="GeminiAudioReauthorizationRequired" xml:space="preserve"><value>Gemini Audio is blocked for this launch. Select consent again and save before using Alt+Shift+L.</value></data>
   <data name="OverlayTitle" xml:space="preserve"><value>MirrorPowerAI — protected panel</value></data>
   <data name="OverlayProgressName" xml:space="preserve"><value>MirrorPowerAI activity in progress</value></data>
-  <data name="OverlayStatusListening" xml:space="preserve"><value>Listening to the selected source, but no audio has been detected yet. Play the meeting voice and check the source. Press Alt+Shift+L to stop.</value></data>
-  <data name="OverlayStatusAudioDetected" xml:space="preserve"><value>Audio detected successfully. Press Alt+Shift+L when you are ready to stop and process.</value></data>
-  <data name="OverlayStatusProcessing" xml:space="preserve"><value>Processing audio and preparing the response…</value></data>
+  <data name="OverlayStatusListening" xml:space="preserve"><value>Continuous listening is active. No audio detected yet; play the meeting and check the source. Alt+Shift+L pauses or resumes.</value></data>
+  <data name="OverlayStatusAudioDetected" xml:space="preserve"><value>Continuous listening is active. Audio detected; questions will be answered automatically. Alt+Shift+L pauses or resumes.</value></data>
+  <data name="OverlayStatusProcessing" xml:space="preserve"><value>Analyzing a question while listening continues…</value></data>
+  <data name="OverlayStatusPaused" xml:space="preserve"><value>Listening is paused. Press Alt+Shift+L to resume.</value></data>
   <data name="QuestionHeading" xml:space="preserve"><value>Detected question</value></data>
   <data name="AnswerHeading" xml:space="preserve"><value>Answer</value></data>
   <data name="CloseButton" xml:space="preserve"><value>Close</value></data>

@@ -70,7 +70,7 @@ public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource,
         UpdateLabels();
     }
 
-    /// <summary>Raised when the user requests start or stop from the tray.</summary>
+    /// <summary>Raised when the user requests start, resume, or pause from the tray.</summary>
     public event EventHandler? ToggleRequested;
 
     /// <summary>Raised when the user requests the latest protected response.</summary>
@@ -122,7 +122,13 @@ public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource,
 
     private bool TryAnnounceStateChange(ShellActivityState activity)
     {
-        if (_disposed || !_stateAnnouncementPolicy.TryCreate(activity, out var announcement))
+        // Segment-level transcription can briefly expose Processing between two Capturing
+        // snapshots. Keep the menu label accurate, but do not show a notification balloon for
+        // every short segment or make a meeting noisy. Returning before the policy sees the
+        // transient state also keeps the next Capturing transition silent.
+        if (_disposed ||
+            activity == ShellActivityState.Processing ||
+            !_stateAnnouncementPolicy.TryCreate(activity, out var announcement))
         {
             return false;
         }
@@ -162,6 +168,7 @@ public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource,
         var statusText = _localization[_activity switch
         {
             ShellActivityState.Capturing => "TrayStatusCapturing",
+            ShellActivityState.Paused => "TrayStatusPaused",
             ShellActivityState.Processing => "TrayStatusBusy",
             ShellActivityState.Error => "TrayStatusError",
             _ => "TrayStatusIdle",
@@ -173,7 +180,11 @@ public sealed class TrayIconService : IDisposable, IShellDiagnosticTrayResource,
         _toggleItem.Text = _localization[_activity switch
         {
             ShellActivityState.Capturing => "TrayToggleStop",
-            ShellActivityState.Processing => "TrayToggleCancel",
+            ShellActivityState.Paused => "TrayToggleResume",
+            // Processing is transient in continuous mode. The only user action is still pause;
+            // using the same label as Capturing prevents the menu from suggesting a send/submit
+            // operation while a segment is being analyzed.
+            ShellActivityState.Processing => "TrayToggleStop",
             _ => "TrayToggleStart",
         }];
         _toggleItem.Enabled = true;
@@ -283,6 +294,10 @@ internal sealed class TrayStateAnnouncementPolicy
             ShellActivityState.Capturing => new TrayStateAnnouncement(
                 activity,
                 "TrayAnnouncementCapturing",
+                Forms.ToolTipIcon.Info),
+            ShellActivityState.Paused => new TrayStateAnnouncement(
+                activity,
+                "TrayAnnouncementPaused",
                 Forms.ToolTipIcon.Info),
             ShellActivityState.Processing => new TrayStateAnnouncement(
                 activity,

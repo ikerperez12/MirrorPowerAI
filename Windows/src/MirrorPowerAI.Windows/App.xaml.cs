@@ -41,6 +41,7 @@ public partial class App : System.Windows.Application, IDisposable
     private int _resourcesDisposed;
     private int _exitInProgress;
     private string? _lastDisplayedAnswer;
+    private string? _lastShownSessionStatus;
 
     /// <inheritdoc />
     protected override void OnStartup(StartupEventArgs e)
@@ -367,23 +368,6 @@ public partial class App : System.Windows.Application, IDisposable
             return;
         }
 
-        if (_sessionCommands.Snapshot.Activity == ShellActivityState.Processing)
-        {
-            try
-            {
-                await _sessionCommands.CancelAsync(_lifetimeCancellation.Token);
-            }
-            catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
-            {
-            }
-            catch (Exception)
-            {
-                _trayIcon?.ShowError(LocalizationService.Current["UnexpectedError"]);
-            }
-
-            return;
-        }
-
         if (Interlocked.Exchange(ref _toggleInProgress, 1) != 0)
         {
             return;
@@ -391,7 +375,7 @@ public partial class App : System.Windows.Application, IDisposable
 
         try
         {
-            if (_sessionCommands.Snapshot.Activity is ShellActivityState.Idle or ShellActivityState.Error)
+            if (_sessionCommands.Snapshot.Activity is ShellActivityState.Idle or ShellActivityState.Paused or ShellActivityState.Error)
             {
                 _settingsWindow?.Hide();
             }
@@ -425,22 +409,50 @@ public partial class App : System.Windows.Application, IDisposable
     private void ApplySessionSnapshot(SessionSnapshot snapshot)
     {
         _trayIcon?.SetStateAndNotify(snapshot.Activity, snapshot.HasResult);
+        var allowResultDisplay = snapshot.Activity is not (ShellActivityState.Paused or ShellActivityState.Error);
         if (snapshot.Activity == ShellActivityState.Capturing)
         {
-            _lastDisplayedAnswer = null;
-            ShowProtectedSessionStatus(
-                LocalizationService.Current[
-                    snapshot.AudioSignalDetected
-                        ? "OverlayStatusAudioDetected"
-                        : "OverlayStatusListening"],
-                isBusy: true,
-                showStopAction: true);
+            if (!snapshot.HasResult)
+            {
+                // A fresh session has no previous answer. Drop the deduplication marker so an
+                // identical answer from a later session is still shown to the user.
+                _lastDisplayedAnswer = null;
+                ShowProtectedSessionStatus(
+                    LocalizationService.Current[
+                        snapshot.AudioSignalDetected
+                            ? "OverlayStatusAudioDetected"
+                            : "OverlayStatusListening"],
+                    isBusy: true,
+                    showStopAction: true);
+            }
+            // When a segment is being analyzed, the controller still carries the last successful
+            // result. Keep that protected answer visible over the meeting instead of replacing it
+            // with a rapidly toggling status panel on every segment.
         }
         else if (snapshot.Activity == ShellActivityState.Processing)
         {
+            // Transcription is intentionally a transient internal state. The capture overlay stays
+            // on the stable listening message while each short segment is analyzed, preventing a
+            // visible Capturing↔Processing flicker. The tray status still exposes Processing.
+            if (!snapshot.HasResult &&
+                (_lastShownSessionStatus is null || _overlayPresenter?.IsVisible != true))
+            {
+                ShowProtectedSessionStatus(
+                    string.IsNullOrWhiteSpace(snapshot.UserMessage)
+                        ? LocalizationService.Current["OverlayStatusProcessing"]
+                        : LocalizeSessionMessage(snapshot.UserMessage),
+                    isBusy: true,
+                    showStopAction: string.IsNullOrWhiteSpace(snapshot.UserMessage));
+            }
+        }
+        else if (snapshot.Activity == ShellActivityState.Paused)
+        {
+            // A paused session is an explicit user-visible boundary. Hide the previous answer in
+            // favour of the paused indicator, but restore it automatically when listening resumes.
+            _lastDisplayedAnswer = null;
             ShowProtectedSessionStatus(
-                LocalizationService.Current["OverlayStatusProcessing"],
-                isBusy: true,
+                LocalizationService.Current["OverlayStatusPaused"],
+                isBusy: false,
                 showStopAction: false);
         }
         else if (snapshot.Activity == ShellActivityState.Error)
@@ -461,9 +473,14 @@ public partial class App : System.Windows.Application, IDisposable
             _trayIcon?.ShowError(LocalizeSessionMessage(snapshot.UserMessage));
         }
 
-        if (snapshot.HasResult && !string.Equals(snapshot.Answer, _lastDisplayedAnswer, StringComparison.Ordinal))
+        if (allowResultDisplay &&
+            snapshot.HasResult &&
+            !string.Equals(snapshot.Answer, _lastDisplayedAnswer, StringComparison.Ordinal))
         {
-            ShowProtectedResponse(snapshot);
+            // Answers discovered during an active meeting are passive. The overlay is protected,
+            // topmost, and readable, but it must not activate or focus itself over Teams, a
+            // browser, or Discord. The tray's explicit “show response” command opts into focus.
+            ShowProtectedResponse(snapshot, activate: false);
         }
     }
 
@@ -474,11 +491,21 @@ public partial class App : System.Windows.Application, IDisposable
             return;
         }
 
+        if (string.Equals(status, _lastShownSessionStatus, StringComparison.Ordinal) &&
+            _overlayPresenter.IsVisible)
+        {
+            return;
+        }
+
         var result = _overlayPresenter.TryShowStatus(status, isBusy, showStopAction);
         if (!result.WasShown)
         {
             _trayIcon?.ShowError(LocalizationService.Current["OverlayProtectionFailed"]);
+            _lastShownSessionStatus = null;
+            return;
         }
+
+        _lastShownSessionStatus = status;
     }
 
     private static string LocalizeSessionMessage(string resourceKey)
@@ -497,17 +524,17 @@ public partial class App : System.Windows.Application, IDisposable
             return;
         }
 
-        ShowProtectedResponse(snapshot);
+        ShowProtectedResponse(snapshot, activate: true);
     }
 
-    private void ShowProtectedResponse(SessionSnapshot snapshot)
+    private void ShowProtectedResponse(SessionSnapshot snapshot, bool activate)
     {
         if (_overlayPresenter is null || string.IsNullOrWhiteSpace(snapshot.Answer))
         {
             return;
         }
 
-        var result = _overlayPresenter.TryShow(snapshot.Question, snapshot.Answer);
+        var result = _overlayPresenter.TryShow(snapshot.Question, snapshot.Answer, activate);
         if (!result.WasShown)
         {
             _lastDisplayedAnswer = null;
@@ -515,6 +542,7 @@ public partial class App : System.Windows.Application, IDisposable
             return;
         }
 
+        _lastShownSessionStatus = null;
         _lastDisplayedAnswer = snapshot.Answer;
     }
 
@@ -535,6 +563,7 @@ public partial class App : System.Windows.Application, IDisposable
 
         _overlayPresenter?.Close();
         _lastDisplayedAnswer = null;
+        _lastShownSessionStatus = null;
 
         try
         {
@@ -572,6 +601,7 @@ public partial class App : System.Windows.Application, IDisposable
     {
         _overlayPresenter?.Close();
         _lastDisplayedAnswer = null;
+        _lastShownSessionStatus = null;
 
         try
         {
@@ -583,7 +613,39 @@ public partial class App : System.Windows.Application, IDisposable
                 }
 
                 _trayIcon?.SetStateAndNotify(ShellActivityState.Idle, hasResponse: false);
-                if (eventArgs.StartAfterSave && _sessionCommands is not null)
+                // "Guardar e iniciar" performs the same authenticated preflight inside ToggleAsync.
+                // Avoid two consecutive model lookups on the latency-critical startup path. The
+                // standalone verification button still reports its result in this window.
+                var verifyWithoutStarting = eventArgs.VerifyApiKey && !eventArgs.StartAfterSave;
+                var verificationSucceeded = !verifyWithoutStarting;
+                if (verifyWithoutStarting && _sessionCommands is not null)
+                {
+                    _settingsWindow?.ShowApiKeyVerificationStatus(
+                        LocalizationService.Current["ApiKeyVerificationInProgress"],
+                        isError: false);
+                    try
+                    {
+                        await _sessionCommands.VerifyApiKeyAsync(cancellationToken);
+                        verificationSucceeded = true;
+                        _settingsWindow?.ShowApiKeyVerificationStatus(
+                            LocalizationService.Current["ApiKeyVerificationSuccess"],
+                            isError: false);
+                    }
+                    catch (GeminiApiException exception)
+                    {
+                        _settingsWindow?.ShowApiKeyVerificationStatus(
+                            LocalizeApiKeyVerificationFailure(exception),
+                            isError: true);
+                    }
+                    catch (Exception)
+                    {
+                        _settingsWindow?.ShowApiKeyVerificationStatus(
+                            LocalizationService.Current["ApiKeyVerificationFailed"],
+                            isError: true);
+                    }
+                }
+
+                if (eventArgs.StartAfterSave && verificationSucceeded && _sessionCommands is not null)
                 {
                     _settingsWindow?.Hide();
                     await _sessionCommands.ToggleAsync(cancellationToken);
@@ -598,6 +660,17 @@ public partial class App : System.Windows.Application, IDisposable
             _trayIcon?.ShowError(LocalizationService.Current["UnexpectedError"]);
         }
     }
+
+    private static string LocalizeApiKeyVerificationFailure(GeminiApiException exception) =>
+        exception.Kind switch
+        {
+            GeminiErrorKind.MissingApiKey => LocalizeSessionMessage("SessionApiKeyRequired"),
+            GeminiErrorKind.Unauthorized => LocalizationService.Current["ApiKeyVerificationUnauthorized"],
+            GeminiErrorKind.RateLimited => LocalizationService.Current["ApiKeyVerificationRateLimited"],
+            GeminiErrorKind.Timeout or GeminiErrorKind.ServiceUnavailable or GeminiErrorKind.HttpError =>
+                LocalizationService.Current["ApiKeyVerificationNetwork"],
+            _ => LocalizationService.Current["ApiKeyVerificationFailed"],
+        };
 
     private async Task RunPrivacyTransitionAsync(Func<CancellationToken, Task> action)
     {

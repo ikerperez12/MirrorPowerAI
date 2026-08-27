@@ -26,7 +26,7 @@ Ejecuta `Windows\verify-whisper-runtime.ps1`. Si falla, confirma que estás usan
 
 Otra aplicación puede haber registrado `Alt+Shift+L`. Cierra la aplicación en conflicto y reinicia MirrorPowerAI. El registro usa `MOD_NOREPEAT` para evitar repeticiones mientras se mantienen las teclas.
 
-No es necesario resolver el conflicto para probar la aplicación: abre Configuración y usa **Guardar y empezar a escuchar**; después pulsa **Detener y procesar** en el panel protegido. También puedes usar **Iniciar escucha** desde la bandeja. Si estas rutas funcionan, el conflicto es exclusivamente del hotkey.
+No es necesario resolver el conflicto para probar la aplicación: abre Configuración, verifica la clave y usa **Guardar y empezar a escuchar**. La escucha continua procesa las preguntas automáticamente; usa **Pausar escucha** en el panel o el menú de bandeja. Si esas rutas funcionan, el conflicto es exclusivamente del hotkey.
 
 ## No se captura audio
 
@@ -52,6 +52,14 @@ La aplicación descarta cualquier archivo cuyo tamaño o SHA-256 no coincidan co
 - `401`: revisa la API key.
 - `429`: se agotó temporalmente la cuota; espera y reintenta manualmente.
 - Timeout/sin red: la aplicación no reenvía automáticamente la petición para evitar duplicados.
+
+## La verificación de la clave API falla
+
+Pulsa **Verificar clave API** después de guardar la clave. Un 401/403 indica una clave inválida, sin acceso al modelo o perteneciente a otro proyecto; un timeout indica red, proxy o firewall. La aplicación no inicia la captura si esta comprobación no termina correctamente y nunca sustituye la clave por otra ni cambia de proveedor de forma silenciosa.
+
+## No aparece una respuesta durante la reunión
+
+Comprueba que el indicador haya pasado de silencio a audio detectado y que el segmento contenga una pregunta completa. La respuesta se solicita automáticamente después de una breve pausa de voz; no hay que pulsar el hotkey para enviar nada. Whisper local puede descargar el modelo la primera vez y tardar más en ese primer segmento. Si la transcripción no conserva signos de interrogación, formula la pregunta con una palabra interrogativa clara (por ejemplo, «cómo», «qué», «puedes» o «why»). El modo de salida sólo conoce el texto escuchado, no la identidad de cada participante.
 
 ## El overlay no aparece
 

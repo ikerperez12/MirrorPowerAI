@@ -12,7 +12,7 @@ public sealed partial class MirrorPowerAIOptions
     /// <summary>
     /// Gets the hard upper bound for one capture session.
     /// </summary>
-    public static readonly TimeSpan CaptureDurationLimit = TimeSpan.FromSeconds(300);
+    public static readonly TimeSpan CaptureDurationLimit = TimeSpan.FromHours(8);
 
     /// <summary>
     /// Gets or sets the transcription provider. Local Whisper is the secure default.
@@ -85,7 +85,7 @@ public sealed partial class MirrorPowerAIOptions
 
         if (MaxCaptureDuration <= TimeSpan.Zero || MaxCaptureDuration > CaptureDurationLimit)
         {
-            errors.Add(new(nameof(MaxCaptureDuration), "La captura debe durar entre 1 milisegundo y 300 segundos."));
+            errors.Add(new(nameof(MaxCaptureDuration), "La escucha debe durar entre 1 milisegundo y 8 horas."));
         }
 
         return errors;

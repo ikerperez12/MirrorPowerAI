@@ -36,7 +36,9 @@ public sealed class CoreSessionCommandsConfigurationTests
 
         await commands.ToggleAsync(CancellationToken.None);
 
-        var snapshot = Assert.Single(snapshots);
+        Assert.Equal(ShellActivityState.Processing, snapshots[0].Activity);
+        Assert.Equal("SessionPreparing", snapshots[0].UserMessage);
+        var snapshot = snapshots[^1];
         Assert.Equal(ShellActivityState.Error, snapshot.Activity);
         Assert.Equal("SessionApiKeyRequired", snapshot.UserMessage);
         Assert.Equal(0, leaseProvider.CallCount);
@@ -118,7 +120,7 @@ public sealed class CoreSessionCommandsConfigurationTests
         Assert.True(detected.AudioSignalDetected);
         Assert.Equal(0, leaseProvider.CallCount);
         Assert.Equal(0, inference.CallCount);
-        Assert.Equal(0, handler.CallCount);
+        Assert.Equal(1, handler.CallCount);
     }
 
     private sealed class InMemorySettingsStore : IAppSettingsStore

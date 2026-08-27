@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using MirrorPowerAI.Core.Answers;
 using MirrorPowerAI.Core.Audio;
 using MirrorPowerAI.Core.Configuration;
@@ -12,17 +13,27 @@ namespace MirrorPowerAI.Core.Sessions;
 /// </summary>
 public sealed class SessionController : IAsyncDisposable
 {
+    private const int SegmentQueueCapacity = 4;
+    private const int MaximumConversationCharacters = 8_000;
+    private const int MaximumPendingFragmentCharacters = 2_048;
+
     private readonly IAudioCaptureService _audioCaptureService;
     private readonly Dictionary<TranscriptionProvider, ITranscriptionService> _transcriptionServices;
     private readonly IAnswerService _answerService;
     private readonly MirrorPowerAIOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _commandGate = new(1, 1);
+    private readonly IAudioSegmentSource? _segmentSource;
 
     private CancellationTokenSource? _sessionCancellation;
     private CancellationTokenSource? _deadlineCancellation;
     private Task? _deadlineTask;
     private Task? _activeOperation;
+    private Channel<SegmentWorkItem>? _segmentChannel;
+    private Task? _segmentWorker;
+    private readonly Queue<string> _recentTranscripts = new();
+    private int _recentTranscriptCharacters;
+    private string? _pendingQuestionFragment;
     private SessionState _state;
     private bool _disposed;
 
@@ -47,6 +58,7 @@ public sealed class SessionController : IAsyncDisposable
         _answerService = answerService ?? throw new ArgumentNullException(nameof(answerService));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _segmentSource = audioCaptureService as IAudioSegmentSource;
 
         var services = new Dictionary<TranscriptionProvider, ITranscriptionService>();
         foreach (var service in transcriptionServices)
@@ -84,7 +96,7 @@ public sealed class SessionController : IAsyncDisposable
     public SessionFailure? LastFailure { get; private set; }
 
     /// <summary>
-    /// Starts capture from an inactive state or stops and processes the active capture.
+    /// Starts listening from an inactive state or pauses the active continuous listener.
     /// </summary>
     /// <param name="cancellationToken">A token used to cancel this command.</param>
     /// <returns>A task that completes when the selected action has completed.</returns>
@@ -103,6 +115,11 @@ public sealed class SessionController : IAsyncDisposable
         Task? operationToAwait = null;
         try
         {
+            if (_activeOperation is { IsCompleted: false })
+            {
+                throw new SessionBusyException();
+            }
+
             switch (_state)
             {
                 case SessionState.Idle:
@@ -111,18 +128,27 @@ public sealed class SessionController : IAsyncDisposable
                     await StartCaptureAsync(cancellationToken).ConfigureAwait(false);
                     break;
 
+                case SessionState.Paused:
+                    await StartCaptureAsync(cancellationToken, preserveConversation: true).ConfigureAwait(false);
+                    break;
+
                 case SessionState.Capturing:
-                    TransitionTo(SessionState.Transcribing);
-                    CancelCaptureDeadline();
-                    operationToAwait = StopAndProcessAsync(
-                        _sessionCancellation ?? throw new InvalidOperationException("No hay una sesión activa."),
-                        cancellationToken);
+                    operationToAwait = _segmentSource is null
+                        ? StopAndProcessCommandAsync(cancellationToken)
+                        : PauseContinuousCaptureAsync(cancellationToken);
                     _activeOperation = operationToAwait;
                     break;
 
                 case SessionState.Transcribing:
                 case SessionState.RequestingAnswer:
-                    throw new SessionBusyException();
+                    if (_segmentSource is null)
+                    {
+                        throw new SessionBusyException();
+                    }
+
+                    operationToAwait = PauseContinuousCaptureAsync(cancellationToken);
+                    _activeOperation = operationToAwait;
+                    break;
 
                 default:
                     throw new InvalidOperationException("Estado de sesión desconocido.");
@@ -135,7 +161,17 @@ public sealed class SessionController : IAsyncDisposable
 
         if (operationToAwait is not null)
         {
-            await operationToAwait.ConfigureAwait(false);
+            try
+            {
+                await operationToAwait.ConfigureAwait(false);
+            }
+            finally
+            {
+                if (ReferenceEquals(_activeOperation, operationToAwait))
+                {
+                    _activeOperation = null;
+                }
+            }
         }
     }
 
@@ -168,9 +204,16 @@ public sealed class SessionController : IAsyncDisposable
         _commandGate.Dispose();
     }
 
-    private async Task StartCaptureAsync(CancellationToken cancellationToken)
+    private async Task StartCaptureAsync(
+        CancellationToken cancellationToken,
+        bool preserveConversation = false)
     {
-        LastResult = null;
+        if (!preserveConversation)
+        {
+            LastResult = null;
+            ClearRecentTranscripts();
+        }
+
         LastFailure = null;
 
         try
@@ -180,22 +223,333 @@ public sealed class SessionController : IAsyncDisposable
 
             _sessionCancellation?.Dispose();
             _sessionCancellation = new CancellationTokenSource();
+
+            if (_segmentSource is not null)
+            {
+                _segmentChannel = Channel.CreateBounded<SegmentWorkItem>(new BoundedChannelOptions(SegmentQueueCapacity)
+                {
+                    FullMode = BoundedChannelFullMode.Wait,
+                    SingleReader = true,
+                    SingleWriter = false,
+                });
+                _segmentSource.SegmentAvailable += OnSegmentAvailable;
+                _segmentWorker = ProcessSegmentsAsync(
+                    _segmentChannel.Reader,
+                    _sessionCancellation.Token);
+            }
+
             await _audioCaptureService.StartAsync(cancellationToken).ConfigureAwait(false);
             TransitionTo(SessionState.Capturing);
-            ScheduleCaptureDeadline(_options.MaxCaptureDuration);
+            if (_segmentSource is null)
+            {
+                ScheduleCaptureDeadline(_options.MaxCaptureDuration);
+            }
         }
         catch (OperationCanceledException)
         {
-            await StopCaptureAfterFailedStartAsync().ConfigureAwait(false);
+            await AbortContinuousStartAsync().ConfigureAwait(false);
             CleanupSession();
             TransitionTo(SessionState.Idle);
             throw;
         }
         catch (Exception exception) when (exception is not SessionBusyException)
         {
-            await StopCaptureAfterFailedStartAsync().ConfigureAwait(false);
+            await AbortContinuousStartAsync().ConfigureAwait(false);
             CleanupSession();
             SetFailure(exception);
+        }
+    }
+
+    /// <summary>
+    /// Cancels the pipeline created before the native capture start completed.  Startup can fail
+    /// after the segment worker has already subscribed, so the worker must be awaited before its
+    /// channel and session token are released.
+    /// </summary>
+    private async Task AbortContinuousStartAsync()
+    {
+        _sessionCancellation?.Cancel();
+        _segmentChannel?.Writer.TryComplete();
+        await AwaitSegmentWorkerAsync().ConfigureAwait(false);
+        await StopCaptureAfterFailedStartAsync().ConfigureAwait(false);
+        StopSegmentWorker();
+    }
+
+    private async Task StopAndProcessCommandAsync(CancellationToken cancellationToken)
+    {
+        TransitionTo(SessionState.Transcribing);
+        CancelCaptureDeadline();
+        await StopAndProcessAsync(
+                _sessionCancellation ?? throw new InvalidOperationException("No hay una sesión activa."),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task PauseContinuousCaptureAsync(CancellationToken cancellationToken)
+    {
+        var sessionCancellation = _sessionCancellation
+            ?? throw new InvalidOperationException("No hay una sesión activa.");
+
+        sessionCancellation.Cancel();
+        _segmentChannel?.Writer.TryComplete();
+
+        Exception? stopFailure = null;
+        try
+        {
+            if (_audioCaptureService.IsCapturing)
+            {
+                using var finalAudio = await _audioCaptureService
+                    .StopAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch (Exception exception)
+        {
+            stopFailure = exception;
+        }
+
+        try
+        {
+            await AwaitSegmentWorkerAsync().ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Pausing deliberately cancels any in-flight transcription or answer request.
+        }
+        finally
+        {
+            StopSegmentWorker();
+            CleanupSession();
+        }
+
+        if (stopFailure is not null)
+        {
+            SetFailure(stopFailure);
+            return;
+        }
+
+        LastFailure = null;
+        // Pausing is an explicit conversational boundary. Keep completed rolling context, but do
+        // not join an unfinished pre-pause fragment to unrelated speech after a later resume.
+        _pendingQuestionFragment = null;
+        TransitionTo(SessionState.Paused);
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    private void OnSegmentAvailable(object? sender, AudioSegmentAvailableEventArgs eventArgs)
+    {
+        ArgumentNullException.ThrowIfNull(eventArgs);
+        var audio = eventArgs.Audio;
+        var channel = Volatile.Read(ref _segmentChannel);
+        if (channel is null || _sessionCancellation?.IsCancellationRequested != false ||
+            !channel.Writer.TryWrite(new SegmentWorkItem(audio, eventArgs.ForcedBoundary)))
+        {
+            audio.Dispose();
+        }
+    }
+
+    private async Task ProcessSegmentsAsync(
+        ChannelReader<SegmentWorkItem> reader,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var workItem in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            {
+                using (workItem.Audio)
+                {
+                    try
+                    {
+                        await ProcessSegmentAsync(
+                                workItem.Audio,
+                                workItem.ForcedBoundary,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        // A failed turn must not terminate the meeting listener.  Keep the last
+                        // successful answer visible while surfacing a safe transient failure.
+                        SetFailure(exception, preserveLastResult: true);
+                        if (!cancellationToken.IsCancellationRequested)
+                        {
+                            TransitionTo(SessionState.Capturing);
+                        }
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            while (reader.TryRead(out var discarded))
+            {
+                discarded.Audio.Dispose();
+            }
+        }
+        catch (Exception exception)
+        {
+            SetFailure(exception);
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                TransitionTo(SessionState.Capturing);
+            }
+        }
+    }
+
+    private async Task ProcessSegmentAsync(
+        CapturedAudio audio,
+        bool forcedBoundary,
+        CancellationToken cancellationToken)
+    {
+        if (!audio.ContainsAudibleSignal || audio.Duration <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var service = GetSelectedTranscriptionService();
+        TransitionTo(SessionState.Transcribing);
+        var language = _options.AutomaticLanguageDetection ? "auto" : _options.Language;
+        var transcript = (await service
+                .TranscribeAsync(audio, language, cancellationToken)
+                .ConfigureAwait(false))
+            .Trim();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(transcript))
+        {
+            LastFailure = null;
+            TransitionTo(SessionState.Capturing);
+            return;
+        }
+
+        if (ConversationQuestionDetector.IsLikelyIncomplete(transcript, forcedBoundary))
+        {
+            _pendingQuestionFragment = AppendQuestionFragment(_pendingQuestionFragment, transcript);
+            LastFailure = null;
+            TransitionTo(SessionState.Capturing);
+            return;
+        }
+
+        if (_pendingQuestionFragment is not null)
+        {
+            transcript = $"{_pendingQuestionFragment} {transcript}".Trim();
+            _pendingQuestionFragment = null;
+        }
+
+        RememberTranscript(transcript);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!ConversationQuestionDetector.IsLikelyQuestion(transcript))
+        {
+            LastFailure = null;
+            TransitionTo(SessionState.Capturing);
+            return;
+        }
+
+        TransitionTo(SessionState.RequestingAnswer);
+        var answerContext = BuildConversationContext();
+        var answer = (await _answerService
+                .AskAsync(transcript, answerContext, cancellationToken)
+                .ConfigureAwait(false))
+            .Trim();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(answer))
+        {
+            throw new SessionOperationException(SessionErrorKind.EmptyAnswer);
+        }
+
+        LastResult = new SessionResult(
+            transcript,
+            answer,
+            service.Provider,
+            _timeProvider.GetUtcNow());
+        LastFailure = null;
+        TransitionTo(SessionState.Capturing);
+    }
+
+    private string BuildConversationContext()
+    {
+        var recent = string.Join(Environment.NewLine, _recentTranscripts);
+        if (string.IsNullOrWhiteSpace(recent))
+        {
+            return _options.Context;
+        }
+
+        return string.IsNullOrWhiteSpace(_options.Context)
+            ? $"Conversación reciente de la reunión (audio de salida):\n{recent}"
+            : $"{_options.Context}\n\nConversación reciente de la reunión (audio de salida):\n{recent}";
+    }
+
+    private void RememberTranscript(string transcript)
+    {
+        _recentTranscripts.Enqueue(transcript);
+        _recentTranscriptCharacters += transcript.Length;
+        while (_recentTranscriptCharacters > MaximumConversationCharacters && _recentTranscripts.Count > 1)
+        {
+            _recentTranscriptCharacters -= _recentTranscripts.Dequeue().Length;
+        }
+    }
+
+    private void ClearRecentTranscripts()
+    {
+        _recentTranscripts.Clear();
+        _recentTranscriptCharacters = 0;
+        _pendingQuestionFragment = null;
+    }
+
+    private static string AppendQuestionFragment(string? existing, string next)
+    {
+        var combined = string.IsNullOrWhiteSpace(existing)
+            ? next.Trim()
+            : $"{existing} {next.Trim()}";
+        if (combined.Length <= MaximumPendingFragmentCharacters)
+        {
+            return combined;
+        }
+
+        // Keep both the original question cue and the newest words while bounding the in-memory
+        // fragment.  Retaining only the suffix could remove "qué/how" and suppress detection.
+        var half = MaximumPendingFragmentCharacters / 2;
+        return $"{combined[..half]} … {combined[^half..]}";
+    }
+
+    private void StopSegmentWorker()
+    {
+        if (_segmentSource is not null)
+        {
+            _segmentSource.SegmentAvailable -= OnSegmentAvailable;
+        }
+
+        _segmentChannel?.Writer.TryComplete();
+        _segmentChannel = null;
+        _segmentWorker = null;
+    }
+
+    /// <summary>Waits for the current segment worker while keeping cleanup centralized.</summary>
+    private async Task AwaitSegmentWorkerAsync()
+    {
+        var worker = _segmentWorker;
+        if (worker is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await worker.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Session cancellation is the normal way a worker leaves the read loop.
+        }
+        catch (Exception)
+        {
+            // Segment failures are converted to LastFailure by the worker.  Teardown must still
+            // finish even if a future adapter violates that contract.
         }
     }
 
@@ -279,7 +633,18 @@ public sealed class SessionController : IAsyncDisposable
             CancelCaptureDeadline();
             _sessionCancellation?.Cancel();
 
-            if (_state == SessionState.Capturing)
+            if (_activeOperation is { IsCompleted: false } activeOperation)
+            {
+                // A concurrent pause/stop is already tearing down the session. Reuse that task
+                // instead of issuing a second native StopAsync call.
+                operationToAwait = activeOperation;
+            }
+            else if (_state == SessionState.Capturing && _segmentSource is not null)
+            {
+                operationToAwait = CancelContinuousCaptureAsync();
+                _activeOperation = operationToAwait;
+            }
+            else if (_state == SessionState.Capturing)
             {
                 if (_audioCaptureService.IsCapturing)
                 {
@@ -302,9 +667,12 @@ public sealed class SessionController : IAsyncDisposable
             }
             else if (_state is SessionState.Transcribing or SessionState.RequestingAnswer)
             {
-                operationToAwait = _activeOperation;
+                operationToAwait = _segmentSource is not null
+                    ? CancelContinuousCaptureAsync()
+                    : _activeOperation;
+                _activeOperation = operationToAwait;
             }
-            else if (_state is SessionState.ShowingResult or SessionState.Error)
+            else if (_state is SessionState.Paused or SessionState.ShowingResult or SessionState.Error)
             {
                 LastResult = null;
                 LastFailure = null;
@@ -318,7 +686,50 @@ public sealed class SessionController : IAsyncDisposable
 
         if (operationToAwait is not null)
         {
-            await operationToAwait.ConfigureAwait(false);
+            try
+            {
+                await operationToAwait.ConfigureAwait(false);
+            }
+            finally
+            {
+                if (ReferenceEquals(_activeOperation, operationToAwait))
+                {
+                    _activeOperation = null;
+                }
+            }
+        }
+    }
+
+    private async Task CancelContinuousCaptureAsync()
+    {
+        _sessionCancellation?.Cancel();
+        _segmentChannel?.Writer.TryComplete();
+
+        try
+        {
+            if (_audioCaptureService.IsCapturing)
+            {
+                using var discardedAudio = await _audioCaptureService
+                    .StopAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch (Exception)
+        {
+            // Explicit cancellation is best-effort and intentionally hides native audio details.
+        }
+
+        try
+        {
+            await AwaitSegmentWorkerAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            StopSegmentWorker();
+            CleanupSession();
+            LastResult = null;
+            LastFailure = null;
+            TransitionTo(SessionState.Idle);
         }
     }
 
@@ -406,9 +817,12 @@ public sealed class SessionController : IAsyncDisposable
         }
     }
 
-    private void SetFailure(Exception exception)
+    private void SetFailure(Exception exception, bool preserveLastResult = false)
     {
-        LastResult = null;
+        if (!preserveLastResult)
+        {
+            LastResult = null;
+        }
         LastFailure = exception switch
         {
             ConfigurationValidationException => new(
@@ -527,4 +941,6 @@ public sealed class SessionController : IAsyncDisposable
 
         public SessionErrorKind Kind { get; }
     }
+
+    private sealed record SegmentWorkItem(CapturedAudio Audio, bool ForcedBoundary);
 }

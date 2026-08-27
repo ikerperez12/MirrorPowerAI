@@ -20,8 +20,11 @@ public sealed class OverlayPresenter
         _protectionService = protectionService ?? throw new ArgumentNullException(nameof(protectionService));
     }
 
-    /// <summary>Raised when the protected status panel requests capture finalization.</summary>
+    /// <summary>Raised when the protected status panel requests that listening be paused.</summary>
     public event EventHandler? StopRequested;
+
+    /// <summary>Gets whether the protected overlay currently has a visible window.</summary>
+    public bool IsVisible => _window?.IsVisible == true;
 
     /// <summary>
     /// Shows plain text only after Windows confirms <c>WDA_EXCLUDEFROMCAPTURE</c>.
@@ -29,13 +32,29 @@ public sealed class OverlayPresenter
     /// <param name="question">Transcribed question.</param>
     /// <param name="answer">Generated answer.</param>
     /// <returns>A result safe to report without revealing content.</returns>
-    public OverlayShowResult TryShow(string? question, string answer)
+    public OverlayShowResult TryShow(string? question, string answer) =>
+        TryShow(question, answer, activate: true);
+
+    /// <summary>
+    /// Shows a protected answer and optionally leaves the meeting window focused.
+    /// </summary>
+    /// <param name="question">Transcribed question.</param>
+    /// <param name="answer">Generated answer.</param>
+    /// <param name="activate">
+    /// <see langword="true"/> only for an explicit user request such as the tray's
+    /// “show response” command. Automatic meeting answers remain non-activating.
+    /// </param>
+    /// <returns>A result safe to report without revealing content.</returns>
+    public OverlayShowResult TryShow(string? question, string answer, bool activate)
     {
         Dispatcher.CurrentDispatcher.VerifyAccess();
         ArgumentException.ThrowIfNullOrWhiteSpace(answer);
 
         Close();
-        var candidate = new OverlayWindow();
+        var candidate = new OverlayWindow
+        {
+            ShowActivated = activate,
+        };
         var protection = _protectionService is OverlayProtectionService windowsProtection
             ? windowsProtection.ProtectAndVerify(candidate)
             : ProtectThroughContract(_protectionService, candidate);
@@ -46,13 +65,16 @@ public sealed class OverlayPresenter
             return new OverlayShowResult(false, protection.Win32Error, protection.Message);
         }
 
-        candidate.SetProtectedContent(question, answer);
+        candidate.SetProtectedContent(question, answer, focusAnswer: activate);
         candidate.PositionOnActiveMonitor();
         candidate.StopRequested += OnStopRequested;
         candidate.Closed += OnWindowClosed;
         _window = candidate;
         candidate.Show();
-        candidate.Activate();
+        if (activate)
+        {
+            candidate.Activate();
+        }
         return OverlayShowResult.Success;
     }
 
@@ -62,7 +84,7 @@ public sealed class OverlayPresenter
     /// </summary>
     /// <param name="status">Localized status containing no user content or raw diagnostics.</param>
     /// <param name="isBusy">Whether indeterminate progress should be visible.</param>
-    /// <param name="showStopAction">Whether the protected capture-stop action should be visible.</param>
+    /// <param name="showStopAction">Whether the protected pause-listening action should be visible.</param>
     /// <returns>A result safe to report without exposing the status text.</returns>
     public OverlayShowResult TryShowStatus(
         string status,

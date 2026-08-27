@@ -43,7 +43,7 @@ public sealed class LocalizationAccessibilityContractTests
             Assert.Equal(
                 "No se pudo activar la compatibilidad de DPI por monitor. La interfaz podría no escalarse correctamente.",
                 localization["DpiAwarenessFailed"]);
-            Assert.Equal("MirrorPowerAI está capturando audio.", localization["TrayAnnouncementCapturing"]);
+            Assert.Equal("MirrorPowerAI ha iniciado la escucha continua.", localization["TrayAnnouncementCapturing"]);
         }
         finally
         {

@@ -9,14 +9,18 @@ namespace MirrorPowerAI.Windows.Transcription;
 /// <summary>
 /// Transcribes normalized audio locally with an explicitly verified Whisper model.
 /// </summary>
-public sealed class WhisperLocalTranscriptionService : ITranscriptionService
+public sealed class WhisperLocalTranscriptionService : ITranscriptionService, IDisposable
 {
     private const int WaveHeaderLength = 44;
     private static readonly TimeSpan MaximumAudioDuration = TimeSpan.FromMinutes(5);
     private readonly IWhisperModelLeaseProvider _modelLeaseProvider;
     private readonly IWhisperInferenceEngine _inferenceEngine;
+    private readonly IWhisperInferencePrewarmer? _prewarmer;
     private readonly string _modelDirectory;
     private readonly int _threadCount;
+    private readonly SemaphoreSlim _inferenceGate = new(1, 1);
+    private IWhisperModelLease? _preparedModelLease;
+    private int _disposed;
 
     /// <summary>
     /// Initializes the production local transcription service.
@@ -60,12 +64,40 @@ public sealed class WhisperLocalTranscriptionService : ITranscriptionService
 
         _modelLeaseProvider = modelLeaseProvider;
         _inferenceEngine = inferenceEngine;
+        _prewarmer = inferenceEngine as IWhisperInferencePrewarmer;
         _modelDirectory = Path.GetFullPath(modelDirectory);
         _threadCount = effectiveThreadCount;
     }
 
     /// <inheritdoc />
     public TranscriptionProvider Provider => TranscriptionProvider.LocalWhisper;
+
+    /// <summary>
+    /// Verifies and loads the local model/runtime before capture starts.
+    /// </summary>
+    /// <remarks>
+    /// This is a no-op for inference adapters that do not advertise the optional prewarm
+    /// capability. It intentionally performs no audio processing and remains fully cancelable.
+    /// </remarks>
+    public async Task PrepareAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_prewarmer is null)
+        {
+            return;
+        }
+
+        await _inferenceGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+            await EnsurePreparedUnderGateAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _inferenceGate.Release();
+        }
+    }
 
     /// <inheritdoc />
     public async Task<string> TranscribeAsync(
@@ -93,20 +125,39 @@ public sealed class WhisperLocalTranscriptionService : ITranscriptionService
         }
 
         var normalizedLanguage = NormalizeLanguage(language);
-        using var modelLease = await _modelLeaseProvider
-            .AcquireVerifiedLeaseAsync(_modelDirectory, cancellationToken)
-            .ConfigureAwait(false);
-
+        await _inferenceGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var transcript = await _inferenceEngine
-                .TranscribeAsync(
-                    modelLease.ModelPath,
-                    audio.WavData,
-                    normalizedLanguage,
-                    _threadCount,
-                    cancellationToken)
-                .ConfigureAwait(false);
+            ThrowIfDisposed();
+            // Direct callers that do not use the shell's explicit preflight still receive
+            // the same one-time warm-up guarantee before their first segment is processed.
+            await EnsurePreparedUnderGateAsync(cancellationToken).ConfigureAwait(false);
+
+            IWhisperModelLease? transientModelLease = null;
+            if (_prewarmer is null)
+            {
+                transientModelLease = await _modelLeaseProvider
+                    .AcquireVerifiedLeaseAsync(_modelDirectory, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            string transcript;
+            try
+            {
+                transcript = await _inferenceEngine
+                    .TranscribeAsync(
+                        (_preparedModelLease ?? transientModelLease)?.ModelPath
+                            ?? throw new InvalidOperationException("No se ha preparado el modelo Whisper."),
+                        audio.WavData,
+                        normalizedLanguage,
+                        _threadCount,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                transientModelLease?.Dispose();
+            }
 
             if (string.IsNullOrWhiteSpace(transcript))
             {
@@ -131,6 +182,88 @@ public sealed class WhisperLocalTranscriptionService : ITranscriptionService
                 WhisperTranscriptionFailure.InferenceFailed,
                 "Whisper no ha podido procesar el audio localmente.",
                 exception);
+        }
+        finally
+        {
+            _inferenceGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Releases the cached inference runtime, when the selected engine owns one.
+    /// </summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _inferenceGate.Wait();
+        try
+        {
+            _preparedModelLease?.Dispose();
+            _preparedModelLease = null;
+
+            if (_inferenceEngine is IDisposable disposableEngine)
+            {
+                disposableEngine.Dispose();
+            }
+        }
+        finally
+        {
+            _inferenceGate.Release();
+            _inferenceGate.Dispose();
+        }
+    }
+
+    private void ThrowIfDisposed() =>
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+
+    private async Task EnsurePreparedUnderGateAsync(CancellationToken cancellationToken)
+    {
+        if (_prewarmer is null || _preparedModelLease is not null)
+        {
+            return;
+        }
+
+        var modelLease = await _modelLeaseProvider
+            .AcquireVerifiedLeaseAsync(_modelDirectory, cancellationToken)
+            .ConfigureAwait(false);
+        var keepLease = false;
+        try
+        {
+            try
+            {
+                await _prewarmer
+                    .PrepareAsync(modelLease.ModelPath, _threadCount, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (WhisperTranscriptionException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                throw new WhisperTranscriptionException(
+                    WhisperTranscriptionFailure.InferenceFailed,
+                    "Whisper no ha podido cargar el modelo local.",
+                    exception);
+            }
+
+            _preparedModelLease = modelLease;
+            keepLease = true;
+        }
+        finally
+        {
+            if (!keepLease)
+            {
+                modelLease.Dispose();
+            }
         }
     }
 

@@ -4,6 +4,7 @@ using MirrorPowerAI.Core.Audio;
 using MirrorPowerAI.Core.Answers;
 using MirrorPowerAI.Core.Configuration;
 using MirrorPowerAI.Core.Gemini;
+using MirrorPowerAI.Core.Models;
 using MirrorPowerAI.Core.Privacy;
 using MirrorPowerAI.Core.Security;
 using MirrorPowerAI.Core.Sessions;
@@ -136,10 +137,45 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
                 ShellActivityState.Error,
                 UserMessage: "SessionApiKeyRequired"));
         }
+        catch (GeminiApiException)
+        {
+            Publish(new SessionSnapshot(
+                ShellActivityState.Error,
+                UserMessage: "SessionGeminiError"));
+        }
+        catch (WhisperModelException)
+        {
+            Publish(new SessionSnapshot(
+                ShellActivityState.Error,
+                UserMessage: "SessionWhisperModelError"));
+        }
+        catch (WhisperTranscriptionException)
+        {
+            Publish(new SessionSnapshot(
+                ShellActivityState.Error,
+                UserMessage: "SessionWhisperModelError"));
+        }
         finally
         {
             _lifecycleGate.Release();
         }
+    }
+
+    /// <inheritdoc />
+    public async Task VerifyApiKeyAsync(CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var apiKey = await _secretStore
+            .GetSecretAsync(MainWindow.GeminiApiKeySecretName, cancellationToken)
+            .ConfigureAwait(false);
+        if (!IsUsableGeminiApiKey(apiKey))
+        {
+            throw new GeminiApiException(
+                GeminiErrorKind.MissingApiKey,
+                "A valid Gemini API key is required.");
+        }
+
+        await _geminiClient.VerifyApiKeyAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -198,6 +234,7 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
 
             _disposed = true;
             await DisposeCurrentControllerAsync().ConfigureAwait(false);
+            _localTranscriptionService.Dispose();
         }
         finally
         {
@@ -214,6 +251,11 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
     private async Task<SessionController> CreateFreshControllerAsync(CancellationToken cancellationToken)
     {
         await DisposeCurrentControllerAsync().ConfigureAwait(false);
+        // Surface the explicit preflight before any key verification or local-model loading can
+        // take noticeable time. No audio is captured until all gates complete successfully.
+        Publish(new SessionSnapshot(
+            ShellActivityState.Processing,
+            UserMessage: "SessionPreparing"));
 
         var settingsTask = _settingsStore.LoadAsync(cancellationToken);
         var contextTask = _secretStore.GetSecretAsync(MainWindow.ProjectContextSecretName, cancellationToken);
@@ -227,12 +269,21 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
                 "A valid Gemini API key is required before capture starts.");
         }
 
+        await _geminiClient.VerifyApiKeyAsync(cancellationToken).ConfigureAwait(false);
+
         var persistedSettings = await settingsTask.ConfigureAwait(false);
         var settings = (persistedSettings with
         {
             Context = await contextTask.ConfigureAwait(false) ?? string.Empty,
         }).Normalize();
         var options = settings.ToCoreOptions();
+        if (options.Provider == TranscriptionProvider.LocalWhisper)
+        {
+            // Download/hash verification and native model loading happen before WASAPI starts.
+            // The first spoken question therefore pays no model initialization penalty while the
+            // meeting is already in progress.
+            await _localTranscriptionService.PrepareAsync(cancellationToken).ConfigureAwait(false);
+        }
         var consent = CreateConsent(settings);
         var geminiTranscription = new GeminiAudioTranscriptionService(
             _geminiClient,
@@ -337,6 +388,7 @@ public sealed class CoreSessionCommands : ISessionCommands, IAsyncDisposable
             controller.State switch
             {
                 SessionState.Capturing => ShellActivityState.Capturing,
+                SessionState.Paused => ShellActivityState.Paused,
                 SessionState.Transcribing or SessionState.RequestingAnswer => ShellActivityState.Processing,
                 SessionState.Error => ShellActivityState.Error,
                 _ => ShellActivityState.Idle,

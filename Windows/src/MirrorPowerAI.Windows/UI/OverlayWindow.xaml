@@ -6,24 +6,27 @@
         Title="{loc:Loc OverlayTitle}"
         Language="{Binding UiLanguage, Source={x:Static loc:LocalizationService.Current}, ConverterCulture=en-US}"
         automation:AutomationProperties.Name="{loc:Loc OverlayTitle}"
-        Width="720"
-        Height="480"
-        MinWidth="420"
-        MinHeight="280"
+        Width="600"
+        Height="360"
+        MinWidth="400"
+        MinHeight="240"
         AllowsTransparency="False"
-        Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
+        Background="{DynamicResource MirrorSurfaceBrush}"
         Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"
         ShowInTaskbar="False"
         Topmost="True"
         ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="Manual"
         KeyDown="OnWindowKeyDown">
-    <Grid>
+    <Grid Margin="16"
+          UseLayoutRounding="True"
+          SnapsToDevicePixels="True">
         <Border x:Name="StatusPanel"
-                Margin="16"
-                Padding="18"
-                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                Padding="24"
+                Background="{DynamicResource MirrorPanelBrush}"
+                BorderBrush="{DynamicResource MirrorBorderBrush}"
                 BorderThickness="1"
+                CornerRadius="{DynamicResource MirrorCardCornerRadius}"
                 Visibility="Collapsed">
             <StackPanel VerticalAlignment="Center">
                 <TextBlock FontSize="20"
@@ -31,14 +34,15 @@
                            automation:AutomationProperties.HeadingLevel="Level1"
                            Text="{loc:Loc OverlayTitle}" />
                 <ProgressBar x:Name="StatusProgressBar"
-                             Height="8"
-                             Margin="0,16,0,14"
+                             Height="5"
+                             Margin="0,16,0,18"
                              IsIndeterminate="True"
                              IsTabStop="False"
                              automation:AutomationProperties.Name="{loc:Loc OverlayProgressName}" />
                 <TextBlock x:Name="StatusTextBlock"
                            FontSize="16"
                            FontWeight="SemiBold"
+                           Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"
                            TextWrapping="Wrap"
                            automation:AutomationProperties.LiveSetting="Assertive" />
                 <Button x:Name="StatusActionButton"
@@ -48,66 +52,75 @@
                         HorizontalAlignment="Right"
                         Visibility="Collapsed"
                         Click="OnStatusActionClick"
-                        Content="{loc:Loc StopAndProcessButton}"
-                        automation:AutomationProperties.Name="{loc:Loc StopAndProcessButton}" />
+                        Content="{loc:Loc PauseListeningButton}"
+                        automation:AutomationProperties.Name="{loc:Loc PauseListeningButton}"
+                        automation:AutomationProperties.HelpText="{loc:Loc PauseListeningHelp}" />
             </StackPanel>
         </Border>
 
-        <Grid x:Name="ResultPanel" Margin="20">
-            <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+        <Border x:Name="ResultPanel"
+                Padding="20"
+                Background="{DynamicResource MirrorPanelBrush}"
+                BorderBrush="{DynamicResource MirrorBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource MirrorCardCornerRadius}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0"
-                   Margin="0,0,0,8"
-                   FontSize="24"
-                   FontWeight="SemiBold"
-                   automation:AutomationProperties.HeadingLevel="Level1"
-                   Text="{loc:Loc OverlayTitle}" />
+                <TextBlock Grid.Row="0"
+                           Margin="0,0,0,8"
+                           FontSize="24"
+                           FontWeight="SemiBold"
+                           automation:AutomationProperties.HeadingLevel="Level1"
+                           Text="{loc:Loc OverlayTitle}" />
 
-        <StackPanel Grid.Row="1" Margin="0,0,0,14">
-            <Label x:Name="QuestionLabel"
-                   Padding="0,0,0,4"
-                   FontWeight="SemiBold"
-                   automation:AutomationProperties.HeadingLevel="Level2"
-                   Target="{Binding ElementName=QuestionTextBox}"
-                   Content="{loc:Loc QuestionHeading}" />
-            <TextBox x:Name="QuestionTextBox"
-                     MaxHeight="110"
-                     IsReadOnly="True"
-                      IsReadOnlyCaretVisible="True"
-                      TextWrapping="Wrap"
-                      VerticalScrollBarVisibility="Auto"
-                     automation:AutomationProperties.LiveSetting="Polite"
-                     automation:AutomationProperties.Name="{loc:Loc QuestionHeading}" />
-        </StackPanel>
+                <StackPanel Grid.Row="1" Margin="0,0,0,14">
+                    <Label x:Name="QuestionLabel"
+                           Padding="0,0,0,4"
+                           FontWeight="SemiBold"
+                           automation:AutomationProperties.HeadingLevel="Level2"
+                           Target="{Binding ElementName=QuestionTextBox}"
+                           Content="{loc:Loc QuestionHeading}" />
+                    <TextBox x:Name="QuestionTextBox"
+                             MinHeight="48"
+                             MaxHeight="110"
+                             IsReadOnly="True"
+                             IsReadOnlyCaretVisible="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             automation:AutomationProperties.LiveSetting="Polite"
+                             automation:AutomationProperties.Name="{loc:Loc QuestionHeading}" />
+                </StackPanel>
 
-        <Label Grid.Row="2"
-               Padding="0,0,0,4"
-               FontWeight="SemiBold"
-               automation:AutomationProperties.HeadingLevel="Level2"
-               Target="{Binding ElementName=AnswerTextBox}"
-               Content="{loc:Loc AnswerHeading}" />
-        <TextBox x:Name="AnswerTextBox"
-                 Grid.Row="3"
-                 IsReadOnly="True"
-                 IsReadOnlyCaretVisible="True"
-                 AcceptsReturn="True"
-                 TextWrapping="Wrap"
-                 VerticalScrollBarVisibility="Auto"
-                 automation:AutomationProperties.LiveSetting="Polite"
-                 automation:AutomationProperties.Name="{loc:Loc AnswerHeading}" />
+                <Label Grid.Row="2"
+                       Padding="0,0,0,4"
+                       FontWeight="SemiBold"
+                       automation:AutomationProperties.HeadingLevel="Level2"
+                       Target="{Binding ElementName=AnswerTextBox}"
+                       Content="{loc:Loc AnswerHeading}" />
+                <TextBox x:Name="AnswerTextBox"
+                         Grid.Row="3"
+                         IsReadOnly="True"
+                         IsReadOnlyCaretVisible="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         automation:AutomationProperties.LiveSetting="Polite"
+                         automation:AutomationProperties.Name="{loc:Loc AnswerHeading}" />
 
-        <Button Grid.Row="4"
-                Margin="4,14,4,0"
-                HorizontalAlignment="Right"
-                IsCancel="True"
-                Click="OnCloseClick"
-                Content="{loc:Loc CloseButton}" />
-        </Grid>
+                <Button Grid.Row="4"
+                        Margin="4,14,4,0"
+                        HorizontalAlignment="Right"
+                        IsCancel="True"
+                        Click="OnCloseClick"
+                        Content="{loc:Loc CloseButton}" />
+            </Grid>
+        </Border>
     </Grid>
 </Window>

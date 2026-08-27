@@ -84,13 +84,13 @@ Comandos parciales:
    - **Una aplicación concreta**: inicia antes la reunión o reproducción, pulsa **Actualizar** y selecciona la aplicación. Windows captura el árbol de ese proceso sin mezclar las demás aplicaciones.
 4. Revisa el contexto del proyecto, idioma y dispositivo de salida si elegiste el audio completo del sistema.
 5. Mantén **Whisper local** para máxima privacidad o selecciona **Gemini Audio**, acepta el consentimiento de nube y guarda la configuración. Por privacidad, Gemini Audio vuelve a quedar bloqueado al reiniciar la aplicación hasta que confirmes y guardes esa elección de nuevo.
-6. Pulsa **Guardar y empezar a escuchar**, o guarda y usa `Alt+Shift+L`/el menú de bandeja. Aparecerá un indicador protegido sin quitar el foco a la reunión. Mientras la fuente entregue silencio dirá **aún no se detecta audio**; cuando una muestra supere el mismo umbral usado para validar la grabación cambiará a **audio detectado correctamente**. Pulsa **Detener y procesar** en ese panel, o usa el atajo/bandeja; el indicador mostrará **Procesando…** hasta que aparezca la respuesta o un error accionable. Si nunca cambia a audio detectado, actualiza o corrige la fuente antes de procesar.
+6. Pulsa **Verificar clave API** para comprobar el acceso al modelo y después **Guardar y empezar a escuchar**, o guarda y usa `Alt+Shift+L`/el menú de bandeja. Aparecerá un indicador protegido sin quitar el foco a la reunión. La escucha permanece activa: cada segmento corto con voz se transcribe en segundo plano y sólo las frases que parecen preguntas generan una respuesta automáticamente. Mientras la fuente entregue silencio dirá **aún no se detecta audio**; cuando llegue señal cambiará a **audio detectado**. `Alt+Shift+L`, el menú de bandeja o **Pausar escucha** detienen/reanudan la escucha, nunca envían manualmente una grabación. Si nunca cambia a audio detectado, actualiza o corrige la fuente.
 
 No existe fallback silencioso entre fuentes: si seleccionas una aplicación y deja de estar disponible, la sesión falla de forma visible y debes actualizar la lista o elegir conscientemente el audio completo del sistema.
 
-Antes de abrir el dispositivo de audio, MirrorPowerAI comprueba que exista una clave Gemini estructuralmente válida. Si falta, muestra el error en el panel protegido y no inicia una grabación que no podría producir respuesta.
+Antes de abrir el dispositivo de audio, MirrorPowerAI comprueba que exista una clave Gemini estructuralmente válida y hace una consulta autenticada al modelo configurado. Si falta o Gemini la rechaza, muestra el error y no inicia la escucha.
 
-La primera transcripción local descarga el modelo fijado:
+La primera escucha con Whisper local prepara y, si hace falta, descarga el modelo fijado antes de abrir la captura:
 
 - Archivo: `ggml-base.bin`
 - Tamaño: `147951465` bytes
@@ -116,6 +116,7 @@ Consulta [PRIVACY.md](docs/PRIVACY.md) para el flujo de datos completo.
 - El aislamiento por aplicación requiere Windows build 20348 o posterior y depende de cómo la aplicación publique sus sesiones de audio. La API oficial funciona con procesos de navegador y muchas aplicaciones, pero Microsoft tiene documentado que Teams de escritorio puede entregar silencio en este modo; usa **Todo el audio del sistema** para Teams.
 - Una aplicación sólo aparece en el selector mientras está ejecutándose y mantiene una sesión de audio. Inicia la reunión o reproduce audio y pulsa **Actualizar**.
 - WASAPI puede omitir audio protegido por DRM.
+- La detección automática identifica preguntas por la transcripción y el contexto local, no por identidad biométrica. El audio de salida no permite saber de forma fiable qué participante habló; el resultado se etiqueta como pregunta detectada de la reunión.
 - `WDA_EXCLUDEFROMCAPTURE` protege frente a APIs públicas que respetan DWM; no protege frente a una cámara física, drivers o software que eluda ese mecanismo.
 - Windows 10, ARM64, MSIX, firma de código, autoactualización y publicación de releases quedan fuera de esta primera versión.
 - La etiqueta estable requiere completar la matriz manual de [QA_CHECKLIST.md](docs/QA_CHECKLIST.md).

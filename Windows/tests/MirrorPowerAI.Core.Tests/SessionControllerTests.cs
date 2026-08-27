@@ -9,6 +9,160 @@ namespace MirrorPowerAI.Core.Tests;
 public sealed class SessionControllerTests
 {
     [Fact]
+    public async Task ContinuousListener_TogglePausesWithoutProcessingAndResumesWithContext()
+    {
+        var audio = new FakeContinuousAudioCaptureService();
+        var transcription = new FakeTranscriptionService(TranscriptionProvider.LocalWhisper)
+        {
+            Handler = static (_, _, _) => Task.FromResult("La pregunta es ¿qué hace este sistema?"),
+        };
+        var answers = new FakeAnswerService();
+        await using var controller = new SessionController(
+            audio,
+            [transcription],
+            answers,
+            new MirrorPowerAIOptions { Context = "Contexto de la demo" });
+
+        await controller.ToggleAsync();
+        Assert.Equal(SessionState.Capturing, controller.State);
+
+        await controller.ToggleAsync();
+        Assert.Equal(SessionState.Paused, controller.State);
+        Assert.Equal(0, transcription.CallCount);
+        Assert.Equal(0, answers.CallCount);
+        Assert.Equal(1, audio.StopCount);
+
+        await controller.ToggleAsync();
+        Assert.Equal(SessionState.Capturing, controller.State);
+        Assert.Equal(2, audio.StartCount);
+        Assert.Null(controller.LastFailure);
+    }
+
+    [Fact]
+    public async Task ContinuousListener_AnswersQuestionAutomaticallyAndKeepsListening()
+    {
+        var audio = new FakeContinuousAudioCaptureService();
+        var transcription = new FakeTranscriptionService(TranscriptionProvider.LocalWhisper)
+        {
+            Handler = static (_, _, _) => Task.FromResult("¿Qué hace este sistema?"),
+        };
+        var answers = new FakeAnswerService();
+        var answerReady = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        answers.Handler = (question, context, _) =>
+        {
+            Assert.Contains("¿Qué hace este sistema?", question, StringComparison.Ordinal);
+            Assert.Contains("Contexto de la demo", context ?? string.Empty, StringComparison.Ordinal);
+            answerReady.TrySetResult(true);
+            return Task.FromResult("Responde en tiempo real.");
+        };
+        await using var controller = new SessionController(
+            audio,
+            [transcription],
+            answers,
+            new MirrorPowerAIOptions { Context = "Contexto de la demo" });
+
+        await controller.ToggleAsync();
+        audio.Publish(TestAudio.Create());
+        await answerReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(SessionState.Capturing, controller.State);
+        Assert.Equal(1, transcription.CallCount);
+        Assert.Equal(1, answers.CallCount);
+        Assert.Equal("Responde en tiempo real.", controller.LastResult?.Answer);
+
+        await controller.ToggleAsync();
+        Assert.Equal(SessionState.Paused, controller.State);
+    }
+
+    [Fact]
+    public async Task ContinuousListener_HoldsForcedQuestionFragmentUntilNextTurn()
+    {
+        var audio = new FakeContinuousAudioCaptureService();
+        var transcripts = new Queue<string>(["¿Qué", "hace este sistema?"]);
+        var transcription = new FakeTranscriptionService(TranscriptionProvider.LocalWhisper)
+        {
+            Handler = (_, _, _) => Task.FromResult(transcripts.Dequeue()),
+        };
+        var answers = new FakeAnswerService();
+        var answerReady = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var returnedToCapture = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        answers.Handler = (_, _, _) =>
+        {
+            answerReady.TrySetResult(true);
+            return Task.FromResult("Respuesta completa.");
+        };
+        await using var controller = new SessionController(
+            audio,
+            [transcription],
+            answers,
+            new MirrorPowerAIOptions());
+        controller.StateChanged += (_, eventArgs) =>
+        {
+            if (eventArgs.CurrentState == SessionState.Capturing && answers.CallCount > 0)
+            {
+                returnedToCapture.TrySetResult(true);
+            }
+        };
+
+        await controller.ToggleAsync();
+        audio.Publish(TestAudio.Create(), forcedBoundary: true);
+        await Task.Delay(50);
+
+        Assert.Equal(0, answers.CallCount);
+        Assert.Equal(SessionState.Capturing, controller.State);
+
+        audio.Publish(TestAudio.Create());
+        await answerReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await returnedToCapture.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(1, answers.CallCount);
+        Assert.Equal("¿Qué hace este sistema?", answers.LastQuestion);
+        Assert.Equal(SessionState.Capturing, controller.State);
+        await controller.ToggleAsync();
+    }
+
+    [Fact]
+    public async Task ContinuousListener_SegmentFailureKeepsListeningAndLastAnswer()
+    {
+        var audio = new FakeContinuousAudioCaptureService();
+        var transcription = new FakeTranscriptionService(TranscriptionProvider.LocalWhisper);
+        var answers = new FakeAnswerService();
+        var firstAnswerReady = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        answers.Handler = (_, _, _) =>
+        {
+            firstAnswerReady.TrySetResult(true);
+            return Task.FromResult("Primera respuesta.");
+        };
+        await using var controller = new SessionController(
+            audio,
+            [transcription],
+            answers,
+            new MirrorPowerAIOptions());
+
+        await controller.ToggleAsync();
+        audio.Publish(TestAudio.Create());
+        await firstAnswerReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await Task.Delay(50);
+        var lastAnswer = controller.LastResult;
+        Assert.NotNull(lastAnswer);
+
+        var segmentFailed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        transcription.Handler = (_, _, _) =>
+        {
+            segmentFailed.TrySetResult(true);
+            throw new InvalidOperationException("native detail");
+        };
+        audio.Publish(TestAudio.Create());
+        await segmentFailed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await Task.Delay(50);
+
+        Assert.Equal(SessionState.Capturing, controller.State);
+        Assert.Same(lastAnswer, controller.LastResult);
+        Assert.NotNull(controller.LastFailure);
+        await controller.ToggleAsync();
+    }
+
+    [Fact]
     public async Task ToggleAsync_NormalFlow_OwnsExpectedTransitionsAndResult()
     {
         var audio = new FakeAudioCaptureService();

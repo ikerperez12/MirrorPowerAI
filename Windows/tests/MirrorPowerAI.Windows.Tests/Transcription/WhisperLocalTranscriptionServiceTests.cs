@@ -237,6 +237,29 @@ public sealed class WhisperLocalTranscriptionServiceTests
         Assert.True(modelProvider.Lease.IsDisposed);
     }
 
+    [Fact]
+    public async Task PrepareAsync_LoadsModelOnceAndReusesVerifiedLeaseForSegments()
+    {
+        var modelProvider = new FakeModelLeaseProvider();
+        var engine = new PrewarmingInferenceEngine();
+        using var service = CreateService(modelProvider, engine);
+
+        await service.PrepareAsync();
+        using var firstAudio = CreateAudio(containsAudibleSignal: true);
+        using var secondAudio = CreateAudio(containsAudibleSignal: true);
+
+        _ = await service.TranscribeAsync(firstAudio, "es");
+        _ = await service.TranscribeAsync(secondAudio, "es");
+
+        Assert.Equal(1, modelProvider.CallCount);
+        Assert.Equal(1, engine.PrepareCount);
+        Assert.Equal(2, engine.InferenceCount);
+        Assert.False(modelProvider.Lease.IsDisposed);
+
+        service.Dispose();
+        Assert.True(modelProvider.Lease.IsDisposed);
+    }
+
     private static WhisperLocalTranscriptionService CreateService(
         IWhisperModelLeaseProvider modelProvider,
         IWhisperInferenceEngine engine) =>
@@ -311,6 +334,35 @@ public sealed class WhisperLocalTranscriptionServiceTests
             Language = language;
             ThreadCount = threadCount;
             return Task.FromResult(transcript);
+        }
+    }
+
+    private sealed class PrewarmingInferenceEngine : IWhisperInferenceEngine, IWhisperInferencePrewarmer
+    {
+        public int PrepareCount { get; private set; }
+
+        public int InferenceCount { get; private set; }
+
+        public Task PrepareAsync(
+            string modelPath,
+            int threadCount,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            PrepareCount++;
+            return Task.CompletedTask;
+        }
+
+        public Task<string> TranscribeAsync(
+            string modelPath,
+            ReadOnlyMemory<byte> wavData,
+            string language,
+            int threadCount,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            InferenceCount++;
+            return Task.FromResult("texto preparado");
         }
     }
 
